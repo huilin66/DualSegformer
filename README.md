@@ -1,23 +1,27 @@
 # Segformer for Mars Landslide Segmentation Challenge
 
-This repository is built based on [M3LSNet](https://github.com/tingul4/M3LSNet), and contains the solution for the **1st Mars Landslide Segmentation (Mars-LS) Challenge**. It implements Segformer with ConvNext backbonefor the challenges of Martian terrain segmentation.
+This repository is built based on [M3LSNet](https://github.com/tingul4/M3LSNet), and contains the solution for the **1st Mars Landslide Segmentation (Mars-LS) Challenge**. It implements Dual_Segformer with ConvNext backbonefor the challenges of Martian terrain segmentation.
 
 ## 📂 Repository Structure
 
 ```
-SegformerConvNext/
-├── networks/              # Model Definition
-├── losses/                # Loss Functions Definition
-├── dataset.py             # 7-Channel Tiff Loader with Smart Normalization
-├── train.py               # Main Training Loop (A100 Optimized)
-├── generate_submission.py # Inference & Submission Zipping
-├── augmentations.py       # Online Data Augmentation
-├── utils_loss.py          # Combined Loss Implementation
-└── outputs/               # Structured Logs & Checkpoints
+DualSegformerConvNext/
+├── losses/                         # Loss Functions Definition
+├── networks/                       # Model Definition
+├── augmentations.py                # Online Data Augmentation
+├── data_prepare.py                 # Data Preparation
+├── dataset.py                      # Dataset Definition
+├── generate_submission_aug.py      # Inference & Submission Zipping
+├── generate_submission_voting.py   # Inference & Submission Zipping
+├── generate_submission.py          # Inference & Submission Zipping
+├── log_write.py                    # Training Log Writing
+├── result_ana.py                   # Result Visualization and Analysis
+├── train.py                        # Main Training Loop (A100 Optimized)
+└── outputs/                        # Structured Logs & Checkpoints
     └── YYYYMMDD_HHMMSS/
-        ├── checkpoints/   # best.pth, last.pth
-        ├── logs/          # Training logs
-        └── tensorboard/   # Visualization
+        ├── checkpoints/            # best.pth, last.pth
+        ├── logs/                   # Training logs
+        └── tensorboard/            # Visualization   
 ```
 
 ---
@@ -28,7 +32,6 @@ SegformerConvNext/
 Ensure you have the following installed:
 - PyTorch 2.x (CUDA recommended)
 - `tifffile` (for 7-channel images)
-- `mamba_ssm` (Optional, for acceleration)
 - `tensorboard`, `tqdm`
 
 ### 2. Training
@@ -39,27 +42,20 @@ python train.py
 ```
 *Outputs will be saved to `outputs/CurrentTimestamp/`.*
 
-### 3. Monitoring
-Track training progress:
-```bash
-tensorboard --logdir outputs/
-```
-
-### 4. Generating Submission
+### 3. Generating Submission
 To generate the `submission.zip` for the challenge leaderboard:
 
 ```bash
 # Uses the 'best.pth' from the specified run
-python generate_submission.py --checkpoint outputs/YOUR_RUN_DIR/checkpoints/best.pth
+python generate_submission.py
 ```
-or use the helper script:
+or:
 ```bash
-sh generate_submission.sh
+python generate_submission_aug.py
 ```
-
+or:
+```bash
+python generate_submission_voting.py
+```
 ---
 
-## 📊 Performance Notes
-
-- **Validation mIoU**: May reach high values (e.g., >0.90) due to spatial correlation in the dataset.
-- **Test Generalization**: The **Per-Image Normalization** and **Augmentation** strategies are specifically designed to maximize performance on the hidden Test Set by forcing the model to learn invariant physical features.
