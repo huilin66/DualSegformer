@@ -27,36 +27,24 @@ DualSegformerConvNext/
 ---
 
 ## 🛠️ Usage
+You can use the following commands to run the code:
 
 ### 1. Data Preparation
-Analysis dataset and fix nodata value in tif files:
 ```bash
+# change path in TODO to prepare your dataset
 python data_prepare.py
 ```
-
+---
 ### 2. Training model
-Train:
 
 ```bash
+# train models and model ckpts will be saved to `outputs/CurrentTimestamp/`.*
 python train.py
 ```
-*Outputs will be saved to `outputs/CurrentTimestamp/`.*
-
+---
 ### 3. Generating Submission
-To generate the `submission.zip` for the challenge leaderboard:
-
 ```bash
-# single model inference without tta
-python generate_submission.py
-```
-or:
-```bash
-# single model inference with tta
-python generate_submission_aug.py
-```
-or:
-```bash
-# multiple models ensemble voting with tta
+# change path in TODO to get the final results
 python generate_submission_voting.py
 ```
 ---
