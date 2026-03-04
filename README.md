@@ -28,14 +28,14 @@ DualSegformerConvNext/
 
 ## 🛠️ Usage
 
-### 1. Requirements
-Ensure you have the following installed:
-- PyTorch 2.x (CUDA recommended)
-- `tifffile` (for 7-channel images)
-- `tensorboard`, `tqdm`
+### 1. Data Preparation
+Analysis dataset and fix nodata value in tif files:
+```bash
+python data_prepare.py
+```
 
-### 2. Training
-To start training with the optimized settings (Batch Size 32, Combined Loss):
+### 2. Training model
+Train:
 
 ```bash
 python train.py
@@ -46,16 +46,20 @@ python train.py
 To generate the `submission.zip` for the challenge leaderboard:
 
 ```bash
-# Uses the 'best.pth' from the specified run
+# single model inference without tta
 python generate_submission.py
 ```
 or:
 ```bash
+# single model inference with tta
 python generate_submission_aug.py
 ```
 or:
 ```bash
+# multiple models ensemble voting with tta
 python generate_submission_voting.py
 ```
 ---
+
+
 

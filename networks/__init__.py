@@ -9,14 +9,10 @@ from .UnetFormer import HF_UNetFormer
 
 def get_model(model_name, in_channels=7, num_classes=2):
     '''
-    获取指定名称的模型实例。
-    
-    Backbone 统一标准:
-    - CNN类: resnest50 (timm-resnest50d), convnext (tu-convnext_tiny)
-    - Transformer类: mit (mit_b2), swin (swin_tiny)
-    
-    参数:
-    - model_name: 模型名称，可用选项如下:
+    get model instance
+
+    params:
+    - model_name:
         [
             # --- CNN Group (ResNeSt50 / ConvNeXttiny) ---
             'deeplabv3p_resnest50', 'unetplusplus_resnest50', 
@@ -31,11 +27,11 @@ def get_model(model_name, in_channels=7, num_classes=2):
             'ocrnet_hrnet_w48', 'm3lsnet', 
             'mask2former-swin', 'oneformer-swin'
         ]
-    - in_channels: 输入通道数，默认 7
-    - num_classes: 输出类别数，默认 2
+    - in_channels
+    - num_classes
     
     返回:
-    - model: 对应的 pytorch 模型实例
+    - model
     '''
     print(f'loading {model_name}...')
 
@@ -327,7 +323,7 @@ def get_model(model_name, in_channels=7, num_classes=2):
         )
     elif model_name == 'mask2former-swintiny':
         return HF_Mask2Former(
-            backbone="swin-tiny", # HF 内部命名可能不同，保持原样
+            backbone="swin-tiny", 
             in_channels=in_channels,
             classes=num_classes
         )
@@ -344,43 +340,16 @@ def get_model(model_name, in_channels=7, num_classes=2):
             num_classes=num_classes
         )
 
-    # elif model_name == 'upernet_hrformer':
-    #     return smp.UPerNet(
-    #         encoder_name="tu-hrformer_small",  # 或者 tu-hrformer_base
-    #         encoder_weights="imagenet",
-    #         in_channels=in_channels,
-    #         classes=num_classes,
-    #         decoder_channels=256,
-    #         encoder_depth=4
-    #     )
-    # elif model_name == 'fpn_hrformer':
-    #     return smp.FPN(
-    #         encoder_name="tu-hrformer_small",
-    #         encoder_weights="imagenet",
-    #         in_channels=in_channels,
-    #         classes=num_classes,
-    #         # 【必须加】不然 Unet/FPN 会去找第5层导致报错
-    #         encoder_depth=4
-    #     )
-    # elif model_name == 'ocrnet_hrformer':
-    #     return SMP_OCRNet(
-    #         encoder_name="tu-hrformer_small", 
-    #         in_channels=in_channels,
-    #         classes=num_classes,
-    #     )
-
 
     elif model_name == 'unetformer_convnexttiny':
         return HF_UNetFormer(
             decode_channels=64,
             dropout=0.1,
-            # timm 中直接叫 convnext_tiny，不需要 smp 的 "tu-" 前缀
             backbone_name='convnext_tiny', 
             pretrained=True,
             window_size=8,
             num_classes=num_classes,
             in_channels=in_channels,
-            # [关键] ConvNeXt 只有 4 个 stage，必须取 0, 1, 2, 3
             out_indices=(0, 1, 2, 3) 
         )
     elif model_name == 'oneformer-convnexttiny':
@@ -507,11 +476,7 @@ def get_model(model_name, in_channels=7, num_classes=2):
         return UniversalDualWrapper(main_m, aux_m, ch1, ch2, fusion_type='moe')
 
 
-    # elif model_name == 'dual_segformer_convnextv2small_chv1_add':
-    #     ch1, ch2 = [0, 1, 2, 3], [4, 5, 6]
-    #     main_m = smp.Segformer("tu-convnextv2_small", encoder_weights="imagenet", in_channels=len(ch1), classes=num_classes)
-    #     aux_m = smp.Segformer("tu-convnextv2_small", encoder_weights="imagenet", in_channels=len(ch2), classes=num_classes)
-    #     return UniversalDualWrapper(main_m, aux_m, ch1, ch2, fusion_type='add')
+
     elif model_name == 'dual_segformer_convnextbase_chv1_add':
         ch1, ch2 = [0, 1, 2, 3], [4, 5, 6]
         main_m = smp.Segformer("tu-convnext_base", encoder_weights="imagenet", in_channels=len(ch1), classes=num_classes)
@@ -593,7 +558,7 @@ def get_model(model_name, in_channels=7, num_classes=2):
             pretrained=True,
             window_size=8,
             num_classes=num_classes,
-            in_channels=len(ch1),      # 自动适配分支1的通道数 (3)
+            in_channels=len(ch1),     
             out_indices=(0, 1, 2, 3)
         )
         
@@ -604,7 +569,7 @@ def get_model(model_name, in_channels=7, num_classes=2):
             pretrained=True,
             window_size=8,
             num_classes=num_classes,
-            in_channels=len(ch2),      # 自动适配分支2的通道数 (3)
+            in_channels=len(ch2),      
             out_indices=(0, 1, 2, 3)
         )
         
@@ -619,7 +584,7 @@ def get_model(model_name, in_channels=7, num_classes=2):
             pretrained=True,
             window_size=8,
             num_classes=num_classes,
-            in_channels=len(ch1),      # 自动适配分支1的通道数 (3)
+            in_channels=len(ch1),      
             out_indices=(0, 1, 2, 3)
         )
         
@@ -630,7 +595,7 @@ def get_model(model_name, in_channels=7, num_classes=2):
             pretrained=True,
             window_size=8,
             num_classes=num_classes,
-            in_channels=len(ch2),      # 自动适配分支2的通道数 (3)
+            in_channels=len(ch2),      
             out_indices=(0, 1, 2, 3)
         )
         
@@ -645,7 +610,7 @@ def get_model(model_name, in_channels=7, num_classes=2):
             pretrained=True,
             window_size=8,
             num_classes=num_classes,
-            in_channels=len(ch1),      # 自动适配分支1的通道数 (3)
+            in_channels=len(ch1),      
             out_indices=(0, 1, 2, 3)
         )
         
@@ -656,7 +621,7 @@ def get_model(model_name, in_channels=7, num_classes=2):
             pretrained=True,
             window_size=8,
             num_classes=num_classes,
-            in_channels=len(ch2),      # 自动适配分支2的通道数 (3)
+            in_channels=len(ch2),      
             out_indices=(0, 1, 2, 3)
         )
         
@@ -671,7 +636,7 @@ def get_model(model_name, in_channels=7, num_classes=2):
             pretrained=True,
             window_size=8,
             num_classes=num_classes,
-            in_channels=len(ch1),      # 自动适配分支1的通道数 (3)
+            in_channels=len(ch1),    
             out_indices=(0, 1, 2, 3)
         )
         
@@ -682,7 +647,7 @@ def get_model(model_name, in_channels=7, num_classes=2):
             pretrained=True,
             window_size=8,
             num_classes=num_classes,
-            in_channels=len(ch2),      # 自动适配分支2的通道数 (3)
+            in_channels=len(ch2),      
             out_indices=(0, 1, 2, 3)
         )
         
@@ -697,7 +662,7 @@ def get_model(model_name, in_channels=7, num_classes=2):
             pretrained=True,
             window_size=8,
             num_classes=num_classes,
-            in_channels=len(ch1),      # 自动适配分支1的通道数 (3)
+            in_channels=len(ch1),      
             out_indices=(0, 1, 2, 3)
         )
         
@@ -708,7 +673,7 @@ def get_model(model_name, in_channels=7, num_classes=2):
             pretrained=True,
             window_size=8,
             num_classes=num_classes,
-            in_channels=len(ch2),      # 自动适配分支2的通道数 (3)
+            in_channels=len(ch2),      
             out_indices=(0, 1, 2, 3)
         )
         
@@ -723,7 +688,7 @@ def get_model(model_name, in_channels=7, num_classes=2):
             pretrained=True,
             window_size=8,
             num_classes=num_classes,
-            in_channels=len(ch1),      # 自动适配分支1的通道数 (3)
+            in_channels=len(ch1),      
             out_indices=(0, 1, 2, 3)
         )
         
@@ -734,7 +699,7 @@ def get_model(model_name, in_channels=7, num_classes=2):
             pretrained=True,
             window_size=8,
             num_classes=num_classes,
-            in_channels=len(ch2),      # 自动适配分支2的通道数 (3)
+            in_channels=len(ch2),      
             out_indices=(0, 1, 2, 3)
         )
         
@@ -749,7 +714,7 @@ def get_model(model_name, in_channels=7, num_classes=2):
             pretrained=True,
             window_size=8,
             num_classes=num_classes,
-            in_channels=len(ch1),      # 自动适配分支1的通道数 (3)
+            in_channels=len(ch1),      
             out_indices=(0, 1, 2, 3)
         )
         
@@ -760,7 +725,7 @@ def get_model(model_name, in_channels=7, num_classes=2):
             pretrained=True,
             window_size=8,
             num_classes=num_classes,
-            in_channels=len(ch2),      # 自动适配分支2的通道数 (3)
+            in_channels=len(ch2),      
             out_indices=(0, 1, 2, 3)
         )
         
