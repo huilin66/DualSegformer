@@ -101,7 +101,7 @@ def train_pipeline(model_name, conduct_val=False):
     VAL_INTERVAL = 1
     IN_CHANNELS = 7
 
-    # Paths
+    # # TODO: update path
     DATASET_ROOT = (
         "/scrinvme/huilin/bdd/cp_data/mars_seg/Mars_LSc_2025_dataset_1st_phase_updateB2"
     )
