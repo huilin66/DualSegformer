@@ -37,7 +37,7 @@ pip install -r requirements.txt
 
 ### 1. Data Preparation
 ```bash
-# change path in TODO to prepare your dataset
+# Update the paths marked as TODO to configure your dataset.
 python data_prepare.py
 ```
 ---
@@ -50,7 +50,7 @@ python train.py
 ---
 ### 3. Inference
 ```bash
-# change path in TODO to get the final results
+# Update the paths marked as TODO to configure your dataset.
 python generate_submission_voting.py
 ```
 ---
