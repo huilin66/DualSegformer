@@ -127,6 +127,9 @@ def train_pipeline(model_name, conduct_val=False):
 
     model = get_model(model_name, in_channels=IN_CHANNELS, num_classes=2).to(device)
 
+    total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"{model_name} Model Parameters: {total_params / 1e6:.2f} M")
+
     train_dataset_raw = MarsSegDataset(root_dir=DATASET_ROOT, split="train")
     train_dataset = MosaicCastDataset(train_dataset_raw)
     val_dataset = MarsSegDataset(root_dir=DATASET_ROOT, split="val")

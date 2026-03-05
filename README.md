@@ -28,6 +28,12 @@ DualSegformerConvNext/
 
 ## 🛠️ Usage
 You can use the following commands to run the code:
+### 0. Installation
+```bash
+conda create -n dualsegformer python=3.10
+conda activate dualsegformer
+pip install -r requirements.txt
+```
 
 ### 1. Data Preparation
 ```bash
@@ -42,7 +48,7 @@ python data_prepare.py
 python train.py
 ```
 ---
-### 3. Generating Submission
+### 3. Inference
 ```bash
 # change path in TODO to get the final results
 python generate_submission_voting.py
