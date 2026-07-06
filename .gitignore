@@ -9,5 +9,12 @@
 *.csv
 *.zip
 
+.env
+
 outputs/
+outputs_ablation/
+outputs_ablation_*/
+outputs_jstar/
 ana/
+
+anasis_report.md

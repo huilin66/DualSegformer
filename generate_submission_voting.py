@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from dataset import MarsSegDatasetInferV0, MarsSegDatasetInferV1, MarsSegDatasetInferV2
+from env_utils import get_data_root
 from networks import get_model
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -194,8 +195,7 @@ def main(ana=True):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    # TODO: update path
-    data_root = (
+    data_root = get_data_root(
         "/scrinvme/huilin/bdd/cp_data/mars_seg/Mars_LSc_2025_dataset_1st_phase_updateB2"
     )
     # data_root = "/scrinvme/huilin/bdd/cp_data/mars_seg/Mars_LSc_2025_test_data_2nd_phase_updateB2"

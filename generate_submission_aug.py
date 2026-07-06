@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from dataset import MarsSegDatasetInferV0, MarsSegDatasetInferV1
+from env_utils import get_data_root
 from networks import get_model
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -158,7 +159,7 @@ def generate_submission(
 
 if __name__ == "__main__":
     pass
-    root = (
+    root = get_data_root(
         "/scrinvme/huilin/bdd/cp_data/mars_seg/Mars_LSc_2025_dataset_1st_phase_updateB2"
     )
     outputs = r"/localnvme/project/M3LSNet/outputs"

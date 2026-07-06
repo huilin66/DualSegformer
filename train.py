@@ -10,6 +10,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from dataset import MarsSegDataset, MosaicCastDataset
+from env_utils import get_data_root
 from losses import UnetFormerLoss
 from networks import get_model
 
@@ -101,8 +102,7 @@ def train_pipeline(model_name, conduct_val=False):
     VAL_INTERVAL = 1
     IN_CHANNELS = 7
 
-    # # TODO: update path
-    DATASET_ROOT = (
+    DATASET_ROOT = get_data_root(
         "/scrinvme/huilin/bdd/cp_data/mars_seg/Mars_LSc_2025_dataset_1st_phase_updateB2"
     )
 
