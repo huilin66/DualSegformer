@@ -33,6 +33,8 @@ DEFAULTS = {
     "num_classes": 2,
     "input_size": 128,
     "batch_size": 16,
+    "max_train_samples": 0,
+    "max_val_samples": 0,
     "epochs": 100,
     "lr": 1e-4,
     "weight_decay": 5e-4,
@@ -109,6 +111,18 @@ def build_parser(defaults=None):
     parser.add_argument("--num-classes", type=int, default=defaults["num_classes"])
     parser.add_argument("--input-size", type=int, default=defaults["input_size"])
     parser.add_argument("--batch-size", type=int, default=defaults["batch_size"])
+    parser.add_argument(
+        "--max-train-samples",
+        type=int,
+        default=defaults["max_train_samples"],
+        help="Use only the first N training samples; 0 means all samples.",
+    )
+    parser.add_argument(
+        "--max-val-samples",
+        type=int,
+        default=defaults["max_val_samples"],
+        help="Use only the first N validation samples; 0 means all samples.",
+    )
     parser.add_argument("--epochs", type=int, default=defaults["epochs"])
     parser.add_argument("--lr", type=float, default=defaults["lr"])
     parser.add_argument("--weight-decay", type=float, default=defaults["weight_decay"])
@@ -164,6 +178,8 @@ class RunConfig:
     num_classes: int
     input_size: int
     batch_size: int
+    max_train_samples: int
+    max_val_samples: int
     epochs: int
     lr: float
     weight_decay: float
@@ -766,6 +782,8 @@ SUMMARY_FIELDS = [
     "num_classes",
     "input_size",
     "batch_size",
+    "max_train_samples",
+    "max_val_samples",
     "epochs",
     "lr",
     "weight_decay",
@@ -839,6 +857,8 @@ def make_summary_row(cfg, run_dir, status, train_samples, val_samples, best_row=
         "num_classes": cfg.num_classes,
         "input_size": cfg.input_size,
         "batch_size": cfg.batch_size,
+        "max_train_samples": cfg.max_train_samples,
+        "max_val_samples": cfg.max_val_samples,
         "epochs": cfg.epochs,
         "lr": cfg.lr,
         "weight_decay": cfg.weight_decay,
@@ -877,7 +897,7 @@ def make_summary_row(cfg, run_dir, status, train_samples, val_samples, best_row=
 def run_experiment(cfg):
     import numpy as np
     import torch
-    from torch.utils.data import DataLoader
+    from torch.utils.data import DataLoader, Subset
     from tqdm import tqdm
 
     set_seed(cfg.seed, cfg.deterministic)
@@ -887,6 +907,12 @@ def run_experiment(cfg):
     logger.info("Run directory: %s", run_dir)
 
     train_dataset, val_dataset = build_datasets(cfg, logger)
+    if cfg.max_train_samples > 0 and len(train_dataset) > cfg.max_train_samples:
+        train_dataset = Subset(train_dataset, list(range(cfg.max_train_samples)))
+        logger.info("Smoke/sample limit: train samples capped to %d", len(train_dataset))
+    if cfg.max_val_samples > 0 and len(val_dataset) > cfg.max_val_samples:
+        val_dataset = Subset(val_dataset, list(range(cfg.max_val_samples)))
+        logger.info("Smoke/sample limit: val samples capped to %d", len(val_dataset))
     train_samples = len(train_dataset)
     val_samples = len(val_dataset)
     if cfg.dry_run:
