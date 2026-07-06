@@ -12,14 +12,14 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from dataset import MarsSegDatasetInferV1, MarsSegDatasetInferV2
+from dataset import MarsSegDatasetInferV0, MarsSegDatasetInferV1, MarsSegDatasetInferV2
 from networks import get_model
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 
 def run_inference_for_model(
-    model_name, checkpoint_path, data_root, temp_dir, augs, device
+    model_name, checkpoint_path, data_root, temp_dir, augs, device, ana=False
 ):
     print(f"\n{'=' * 50}")
     print(f"🚀 Starting inference for model: {model_name}")
@@ -36,7 +36,9 @@ def run_inference_for_model(
         model.load_state_dict(checkpoint.state_dict())
     model.eval()
 
-    if "1st" in model_name:
+    if ana:
+        test_dataset = MarsSegDatasetInferV0(root_dir=data_root, split="test")
+    elif "1st" in model_name:
         test_dataset = MarsSegDatasetInferV1(root_dir=data_root, split="test")
     elif "2nd" in model_name:
         test_dataset = MarsSegDatasetInferV2(root_dir=data_root, split="test")
@@ -134,8 +136,8 @@ def generate_ensembles(temp_dir, model_names, output_base, weights=None):
     print("Starting Ensemble (Hard Voting & Soft Voting)...")
     print(f"{'=' * 50}")
 
-    hard_vote_dir = os.path.join(output_base, "hard_voting_masks")
-    soft_vote_dir = os.path.join(output_base, "soft_voting_masks")
+    hard_vote_dir = os.path.join(temp_dir, "hard_voting_masks")
+    soft_vote_dir = os.path.join(temp_dir, "soft_voting_masks")
     os.makedirs(hard_vote_dir, exist_ok=True)
     os.makedirs(soft_vote_dir, exist_ok=True)
 
@@ -145,6 +147,7 @@ def generate_ensembles(temp_dir, model_names, output_base, weights=None):
     weights = np.array(weights) / np.sum(weights)
 
     base_prob_dir = os.path.join(temp_dir, model_names[0], "probs")
+    os.makedirs(base_prob_dir, exist_ok=True)
     filenames = [
         f.replace(".npy", ".tif")
         for f in os.listdir(base_prob_dir)
@@ -187,17 +190,20 @@ def create_zip(source_dir, zip_filename):
     print(f"Saved: {zip_filename}")
 
 
-def main():
+def main(ana=True):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     # TODO: update path
-    # data_root = '/scrinvme/huilin/bdd/cp_data/mars_seg/Mars_LSc_2025_dataset_1st_phase_updateB2'
-    data_root = "/scrinvme/huilin/bdd/cp_data/mars_seg/Mars_LSc_2025_test_data_2nd_phase_updateB2"
+    data_root = (
+        "/scrinvme/huilin/bdd/cp_data/mars_seg/Mars_LSc_2025_dataset_1st_phase_updateB2"
+    )
+    # data_root = "/scrinvme/huilin/bdd/cp_data/mars_seg/Mars_LSc_2025_test_data_2nd_phase_updateB2"
     outputs_dir = r"/localnvme/project/M3LSNet/outputs"
 
-    temp_dir = "ensemble_temp_files"
+    temp_dir = "ensemble_temp_files" if not ana else "./ana/ensemble_temp_files"
     final_output_dir = "submission_ensembles"
+    os.makedirs(temp_dir, exist_ok=True)
     os.makedirs(final_output_dir, exist_ok=True)
 
     augs = {
@@ -211,8 +217,8 @@ def main():
     }
 
     result_dict = {
-        "dual_segformer_convnexttiny_chv1_add": "20260201_223101",
-        "dual_segformer_convnextlarge_chv1_add": "20260201_233033",
+        "dual_segformer_convnexttiny_chv1_add": "20260301_223101",
+        "dual_segformer_convnextlarge_chv1_add": "20260302_133033",
     }
 
     custom_weights = [1.0] * len(result_dict)
@@ -227,7 +233,7 @@ def main():
             continue
 
         run_inference_for_model(
-            model_name, checkpoint_path, data_root, temp_dir, augs, device
+            model_name, checkpoint_path, data_root, temp_dir, augs, device, ana=ana
         )
 
     hard_dir, soft_dir = generate_ensembles(
@@ -242,7 +248,8 @@ def main():
     create_zip(soft_dir, soft_zip)
 
     print("\nCleaning up temporary files...")
-    shutil.rmtree(temp_dir)
+    if not ana:
+        shutil.rmtree(temp_dir)
     print("All done! You can now submit the zip files.")
 
 

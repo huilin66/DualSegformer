@@ -1,4 +1,13 @@
-*.csv
 *.pyc
 
+*.jpg
+*.png
+*.tif
+
+*.npy
+
+*.csv
+*.zip
+
 outputs/
+ana/

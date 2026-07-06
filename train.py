@@ -117,7 +117,7 @@ def train_pipeline(model_name, conduct_val=False):
     os.makedirs(LOG_DIR, exist_ok=True)
     os.makedirs(TB_DIR, exist_ok=True)
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
     writer = SummaryWriter(log_dir=TB_DIR)
     logger, _ = setup_logger(LOG_DIR)
     logger.info(f"Model: {model_name}")
@@ -293,11 +293,19 @@ def train_pipeline(model_name, conduct_val=False):
 
 if __name__ == "__main__":
     model_names = [
+        "m3lsnet",
+        "ocrnet_hrnet_w48",
+        # "unet_resnet50",
+        "upernet_convnexttiny",
+        "segformer_mitb2",
+        "segformer_convnexttiny",
         "dual_segformer_convnexttiny_chv1_add",
+        "dual_segformer_convnextsmall_chv1_add",
+        "dual_segformer_convnextbase_chv1_add",
         "dual_segformer_convnextlarge_chv1_add",
     ]
     for model_name in model_names:
         train_pipeline(
             model_name,
-            conduct_val=False,  # turn off validation in this task
+            conduct_val=True,  # turn off validation in this task
         )

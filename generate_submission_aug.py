@@ -12,7 +12,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from dataset import MarsSegDatasetInferV1
+from dataset import MarsSegDatasetInferV0, MarsSegDatasetInferV1
 from networks import get_model
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -26,6 +26,7 @@ def generate_submission(
     remove=True,
     augs=None,
     temp_dir="temp_submission_masks",
+    ana=False,
 ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
@@ -56,7 +57,11 @@ def generate_submission(
         print(f"Error: Test directory not found at {test_dir}")
         return
 
-    test_dataset = MarsSegDatasetInferV1(root_dir=data_root, split="test")
+    if ana:
+        test_dataset = MarsSegDatasetInferV0(root_dir=data_root, split="test")
+        temp_dir = f"ana/{model_name}"
+    else:
+        test_dataset = MarsSegDatasetInferV1(root_dir=data_root, split="test")
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=4)
 
     if os.path.exists(temp_dir):
@@ -145,7 +150,7 @@ def generate_submission(
                     file_path = os.path.join(root, file)
                     zipf.write(file_path, arcname=file)
 
-    if remove:
+    if remove and not ana:
         print("Cleaning up temporary files...")
         shutil.rmtree(temp_dir)
     print(f"Submission generated successfully: {os.path.abspath(output_zip_path)}")
@@ -153,9 +158,14 @@ def generate_submission(
 
 if __name__ == "__main__":
     pass
-    root = ""
-    outputs = ""
-    result_dict = {}
+    root = (
+        "/scrinvme/huilin/bdd/cp_data/mars_seg/Mars_LSc_2025_dataset_1st_phase_updateB2"
+    )
+    outputs = r"/localnvme/project/M3LSNet/outputs"
+    result_dict = {
+        "segformer_convnexttiny": "20260301_220437",
+        "dual_segformer_convnexttiny_chv1_add": "20260301_223101",
+    }
     augs = {
         "flip_v": True,
         "flip_h": True,
@@ -172,4 +182,5 @@ if __name__ == "__main__":
             root,
             remove=False,
             augs=augs,
+            ana=True,
         )

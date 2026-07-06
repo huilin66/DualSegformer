@@ -81,10 +81,18 @@ def batch_write(logs_dir, output_csv, task_list=None):
 
 
 if __name__ == "__main__":
-    log_dir = "/localnvme/project/M3LSNet/outputs"
-    output_csv = "training_metrics.csv"
+    log_dir = "/localnvme/project/dual_segformer_convnext/outputs"
+    output_csv = "val_metrics.csv"
     task_list = [
-        # '20260227_102956',
-        # '20260227_124411',
+        "20260305_203049",
+        "20260305_204800",
+        "20260305_212159",
+        "20260305_214043",
+        "20260305_215720",
+        "20260305_221337",
+        "20260305_223005",
+        "20260305_224737",
+        "20260305_230846",
+        "20260305_232711",
     ]
     batch_write(log_dir, output_csv, task_list)

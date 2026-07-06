@@ -531,8 +531,10 @@ if __name__ == "__main__":
     # region train data prepare
     # # TODO: update path
     # TRAIN_SRC = '/scrinvme/huilin/bdd/cp_data/mars_seg/Mars_LSc_2025_dataset_1st_phase'
-    # TRAIN_REPAIR = '/scrinvme/huilin/bdd/cp_data/mars_seg/Mars_LSc_2025_dataset_1st_phase_updateB2'
-    # DATA_ROOT = TRAIN_REPAIR
+    TRAIN_REPAIR = (
+        "/scrinvme/huilin/bdd/cp_data/mars_seg/Mars_LSc_2025_dataset_1st_phase_updateB2"
+    )
+    DATA_ROOT = TRAIN_REPAIR
 
     # fix_nodata(TRAIN_SRC, TRAIN_REPAIR)
 
@@ -540,10 +542,9 @@ if __name__ == "__main__":
     # sta_ms(os.path.join(DATA_ROOT, "val/images"))
     # sta_ms(os.path.join(DATA_ROOT, "test/images"))
 
-    # analyze_band_importance(
-    #     os.path.join(DATA_ROOT, "train/images"),
-    #     os.path.join(DATA_ROOT, "train/masks")
-    #     )
+    analyze_band_importance(
+        os.path.join(DATA_ROOT, "train/images"), os.path.join(DATA_ROOT, "train/masks")
+    )
 
     # endregion
 

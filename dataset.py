@@ -182,6 +182,83 @@ class MarsSegDataset(data.Dataset):
         return image_t, mask_t
 
 
+class MarsSegDatasetInferV0(data.Dataset):
+    def __init__(self, root_dir, split="train", size=128, val_ana=False):
+        """
+        root_dir: Dataset root directory containing train/ val/ test/ subdirectories
+        split: 'train', 'val', or 'test'
+        """
+        self.root_dir = root_dir
+        self.split = split
+        self.size = size
+
+        self.augmentor = MarsAugmentor(prob=0.5) if split == "train" else None
+
+        if split == "train":
+            mars_mean = MARS_MEAN_TRAIN
+            mars_std = MARS_STD_TRAIN
+        elif split == "val":
+            mars_mean = MARS_MEAN_VAL
+            mars_std = MARS_STD_VAL
+        else:
+            mars_mean = MARS_MEAN_VAL
+            mars_std = MARS_STD_VAL
+
+        self.mean = np.array(mars_mean, dtype=np.float32).reshape(7, 1, 1)
+        self.std = np.array(mars_std, dtype=np.float32).reshape(7, 1, 1)
+
+        self.images_dir = os.path.join(root_dir, "val", "images")
+        self.masks_dir = os.path.join(root_dir, "val", "masks")
+
+        if not os.path.exists(self.images_dir):
+            if split != "test":
+                print(f"Warning: Directory not found: {self.images_dir}")
+            self.images = []
+        else:
+            self.images = sorted(
+                [f for f in os.listdir(self.images_dir) if f.endswith(".tif")]
+            )
+
+    def __len__(self):
+        return len(self.images)
+
+    def __getitem__(self, index):
+        image_name = self.images[index]
+        image_path = os.path.join(self.images_dir, image_name)
+
+        try:
+            image = tifffile.imread(image_path).astype(np.float32)
+        except Exception as e:
+            print(f"Error loading {image_path}: {e}")
+            return torch.zeros(7, self.size, self.size), torch.zeros(
+                self.size, self.size
+            ).long()
+        if image.ndim == 3 and image.shape[2] == 7:
+            image = image.transpose(2, 0, 1)
+        image[image < -100000] = 0.0
+
+        if image.shape[0] == 7:
+            for c in range(7):
+                image[c] = (image[c] - self.mean[c, 0, 0]) / (self.std[c, 0, 0] + 1e-8)
+
+        if self.split == "test":
+            return torch.from_numpy(image).float(), image_name
+
+        if index < len(self.masks):
+            mask_name = self.masks[index]
+            mask_path = os.path.join(self.masks_dir, mask_name)
+            mask = tifffile.imread(mask_path).astype(np.float32)
+        else:
+            mask = np.zeros((self.size, self.size))
+
+        image_t = torch.from_numpy(image).float()
+        mask_t = torch.from_numpy(mask).long()
+        if self.augmentor is not None:
+            image_t, mask_t = self.augmentor(image_t, mask_t)
+
+        return image_t, mask_t
+
+
 class MarsSegDatasetInferV1(data.Dataset):
     def __init__(self, root_dir, split="train", size=128, val_ana=False):
         """
@@ -446,3 +523,15 @@ class MosaicCastDataset(data.Dataset):
         final_mask = mosaic_mask[i : i + self.size, j : j + self.size]
 
         return final_img, final_mask
+
+
+if __name__ == "__main__":
+    pass
+    for i in range(7):
+        print(
+            f"channel[{i}]: {MARS_MEAN_VAL[i]:.02f}({MARS_MEAN_VAL[i] - MARS_MEAN_TRAIN[i]:.02f}, {(MARS_MEAN_VAL[i] - MARS_MEAN_TRAIN[i]) / MARS_MEAN_TRAIN[i] * 100:.02f}%);{MARS_MEAN_TEST[i]:.02f}({MARS_MEAN_TEST[i] - MARS_MEAN_TRAIN[i]:.02f}, {(MARS_MEAN_TEST[i] - MARS_MEAN_TRAIN[i]) / MARS_MEAN_TRAIN[i] * 100:.02f}%);{MARS_MEAN_TESTB[i]:.02f}({MARS_MEAN_TESTB[i] - MARS_MEAN_TRAIN[i]:.02f}, {(MARS_MEAN_TESTB[i] - MARS_MEAN_TRAIN[i]) / MARS_MEAN_TRAIN[i] * 100:.02f}%)"
+        )
+    for i in range(7):
+        print(
+            f"channel[{i}]: {MARS_STD_VAL[i]:.02f}({MARS_STD_VAL[i] - MARS_STD_TRAIN[i]:.02f}, {(MARS_STD_VAL[i] - MARS_STD_TRAIN[i]) / MARS_STD_TRAIN[i] * 100:.02f}%);{MARS_STD_TEST[i]:.02f}({MARS_STD_TEST[i] - MARS_STD_TRAIN[i]:.02f}, {(MARS_STD_TEST[i] - MARS_STD_TRAIN[i]) / MARS_STD_TRAIN[i] * 100:.02f}%);{MARS_MEAN_TESTB[i]:.02f}({MARS_STD_TESTB[i] - MARS_STD_TRAIN[i]:.02f}, {(MARS_STD_TESTB[i] - MARS_STD_TRAIN[i]) / MARS_STD_TRAIN[i] * 100:.02f}%))"
+        )

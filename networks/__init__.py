@@ -65,7 +65,13 @@ def get_model(model_name, in_channels=7, num_classes=2):
             in_channels=in_channels,
             classes=num_classes,
         )
-
+    elif model_name == "unet_resnet50":
+        return smp.Unet(
+            encoder_name="timm-resnest50d",
+            encoder_weights="imagenet",
+            in_channels=in_channels,
+            classes=num_classes,
+        )
     elif model_name == "unet_convnexttiny":
         return smp.Unet(
             encoder_name="tu-convnext_tiny",
