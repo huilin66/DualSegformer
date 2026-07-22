@@ -54,6 +54,9 @@ DEFAULTS = {
     "init_checkpoint": "",
     "val_interval": 1,
     "save_interval": 1,
+    "primary_metric": "miou",
+    "early_stopping_patience": 0,
+    "min_delta": 0.0,
     "normalization": "auto",
     "dry_run": False,
     "skip_model_init": False,
@@ -143,6 +146,24 @@ def build_parser(defaults=None):
     parser.add_argument("--val-interval", type=int, default=defaults["val_interval"])
     parser.add_argument("--save-interval", type=int, default=defaults["save_interval"])
     parser.add_argument(
+        "--primary-metric",
+        default=defaults["primary_metric"],
+        choices=["miou", "iou_fg", "f1", "val_loss"],
+        help="Metric used for best.pth and optional early stopping.",
+    )
+    parser.add_argument(
+        "--early-stopping-patience",
+        type=int,
+        default=defaults["early_stopping_patience"],
+        help="Stop after N validations without primary metric improvement; 0 disables it.",
+    )
+    parser.add_argument(
+        "--min-delta",
+        type=float,
+        default=defaults["min_delta"],
+        help="Minimum primary metric improvement for checkpoint/early stopping.",
+    )
+    parser.add_argument(
         "--normalization",
         default=defaults["normalization"],
         choices=["auto", "train", "val", "test", "none"],
@@ -199,6 +220,9 @@ class RunConfig:
     init_checkpoint: str
     val_interval: int
     save_interval: int
+    primary_metric: str
+    early_stopping_patience: int
+    min_delta: float
     normalization: str
     dry_run: bool
     skip_model_init: bool
@@ -793,6 +817,9 @@ SUMMARY_FIELDS = [
     "augmentation",
     "aug_prob",
     "mosaic_prob",
+    "primary_metric",
+    "early_stopping_patience",
+    "min_delta",
     "normalization",
     "mixed_precision",
     "deterministic",
@@ -804,6 +831,19 @@ SUMMARY_FIELDS = [
     "best_iou_bg",
     "best_f1",
     "best_val_loss",
+    "best_iou_fg_epoch",
+    "best_iou_fg_miou",
+    "best_iou_fg_value",
+    "best_iou_fg_f1",
+    "best_f1_epoch",
+    "best_f1_miou",
+    "best_f1_iou_fg",
+    "best_f1_value",
+    "best_val_loss_epoch",
+    "best_val_loss_miou",
+    "best_val_loss_iou_fg",
+    "best_val_loss_f1",
+    "best_val_loss_value",
     "final_epoch",
     "final_miou",
     "final_iou_fg",
@@ -812,6 +852,10 @@ SUMMARY_FIELDS = [
     "final_val_loss",
     "final_train_loss",
     "best_checkpoint",
+    "best_miou_checkpoint",
+    "best_iou_fg_checkpoint",
+    "best_f1_checkpoint",
+    "best_val_loss_checkpoint",
     "last_checkpoint",
     "git_commit",
     "git_branch",
@@ -831,10 +875,23 @@ def append_summary(path, row):
         writer.writerow(normalized)
 
 
-def make_summary_row(cfg, run_dir, status, train_samples, val_samples, best_row=None, final_row=None):
+def make_summary_row(
+    cfg,
+    run_dir,
+    status,
+    train_samples,
+    val_samples,
+    best_row=None,
+    final_row=None,
+    metric_best_rows=None,
+):
     git_info = get_git_info()
     best_row = best_row or {}
     final_row = final_row or {}
+    metric_best_rows = metric_best_rows or {}
+    best_iou_fg_row = metric_best_rows.get("iou_fg", {})
+    best_f1_row = metric_best_rows.get("f1", {})
+    best_val_loss_row = metric_best_rows.get("val_loss", {})
     return {
         "completed_at": datetime.now().isoformat(timespec="seconds"),
         "status": status,
@@ -868,6 +925,9 @@ def make_summary_row(cfg, run_dir, status, train_samples, val_samples, best_row=
         "augmentation": cfg.augmentation,
         "aug_prob": cfg.aug_prob,
         "mosaic_prob": cfg.mosaic_prob,
+        "primary_metric": cfg.primary_metric,
+        "early_stopping_patience": cfg.early_stopping_patience,
+        "min_delta": cfg.min_delta,
         "normalization": cfg.normalization,
         "mixed_precision": cfg.mixed_precision,
         "deterministic": cfg.deterministic,
@@ -879,6 +939,19 @@ def make_summary_row(cfg, run_dir, status, train_samples, val_samples, best_row=
         "best_iou_bg": best_row.get("iou_bg", ""),
         "best_f1": best_row.get("f1", ""),
         "best_val_loss": best_row.get("val_loss", ""),
+        "best_iou_fg_epoch": best_iou_fg_row.get("epoch", ""),
+        "best_iou_fg_miou": best_iou_fg_row.get("miou", ""),
+        "best_iou_fg_value": best_iou_fg_row.get("iou_fg", ""),
+        "best_iou_fg_f1": best_iou_fg_row.get("f1", ""),
+        "best_f1_epoch": best_f1_row.get("epoch", ""),
+        "best_f1_miou": best_f1_row.get("miou", ""),
+        "best_f1_iou_fg": best_f1_row.get("iou_fg", ""),
+        "best_f1_value": best_f1_row.get("f1", ""),
+        "best_val_loss_epoch": best_val_loss_row.get("epoch", ""),
+        "best_val_loss_miou": best_val_loss_row.get("miou", ""),
+        "best_val_loss_iou_fg": best_val_loss_row.get("iou_fg", ""),
+        "best_val_loss_f1": best_val_loss_row.get("f1", ""),
+        "best_val_loss_value": best_val_loss_row.get("val_loss", ""),
         "final_epoch": final_row.get("epoch", ""),
         "final_miou": final_row.get("miou", ""),
         "final_iou_fg": final_row.get("iou_fg", ""),
@@ -887,11 +960,21 @@ def make_summary_row(cfg, run_dir, status, train_samples, val_samples, best_row=
         "final_val_loss": final_row.get("val_loss", ""),
         "final_train_loss": final_row.get("train_loss", ""),
         "best_checkpoint": str(run_dir / "checkpoints" / "best.pth"),
+        "best_miou_checkpoint": str(run_dir / "checkpoints" / "best_miou.pth"),
+        "best_iou_fg_checkpoint": str(run_dir / "checkpoints" / "best_iou_fg.pth"),
+        "best_f1_checkpoint": str(run_dir / "checkpoints" / "best_f1.pth"),
+        "best_val_loss_checkpoint": str(run_dir / "checkpoints" / "best_val_loss.pth"),
         "last_checkpoint": str(run_dir / "checkpoints" / "last.pth"),
         "git_commit": git_info["commit"],
         "git_branch": git_info["branch"],
         "git_dirty": git_info["dirty"],
     }
+
+
+def metric_is_better(metric_name, score, best_score, min_delta):
+    if metric_name == "val_loss":
+        return score < best_score - min_delta
+    return score > best_score + min_delta
 
 
 def run_experiment(cfg):
@@ -956,12 +1039,20 @@ def run_experiment(cfg):
         load_checkpoint(cfg.init_checkpoint, model, map_location=device)
 
     start_epoch = 0
-    best_metric = 0.0
+    tracked_metrics = ["miou", "iou_fg", "f1", "val_loss"]
+    best_scores = {
+        "miou": float("-inf"),
+        "iou_fg": float("-inf"),
+        "f1": float("-inf"),
+        "val_loss": float("inf"),
+    }
+    metric_best_rows = {}
     if cfg.resume:
         logger.info("Resuming checkpoint: %s", cfg.resume)
-        start_epoch, best_metric = load_checkpoint(
+        start_epoch, loaded_best_metric = load_checkpoint(
             cfg.resume, model, optimizer, scheduler, map_location=device
         )
+        best_scores[cfg.primary_metric] = loaded_best_metric
 
     gt = torch.Generator()
     gt.manual_seed(cfg.seed)
@@ -991,6 +1082,7 @@ def run_experiment(cfg):
     metrics_path = run_dir / "metrics.csv"
     best_row = {}
     final_row = {}
+    epochs_without_improvement = 0
 
     for epoch in range(start_epoch, cfg.epochs):
         model.train()
@@ -1017,22 +1109,62 @@ def run_experiment(cfg):
         val_metrics = {}
         if len(val_dataset) > 0 and (epoch + 1) % cfg.val_interval == 0:
             val_metrics = evaluate(model, val_loader, criterion, cfg, device, logger)
-            if val_metrics["miou"] > best_metric:
-                best_metric = val_metrics["miou"]
-                save_checkpoint(
-                    run_dir / "checkpoints" / "best.pth",
-                    model,
-                    optimizer,
-                    scheduler,
-                    epoch,
-                    best_metric,
-                    cfg,
-                )
-                logger.info("Saved new best checkpoint: %.4f", best_metric)
 
         if scheduler is not None:
             scheduler.step()
 
+        row = {
+            "epoch": epoch + 1,
+            "train_loss": avg_train_loss,
+            "lr": optimizer.param_groups[0]["lr"],
+        }
+        row.update(val_metrics)
+
+        primary_improved = False
+        if val_metrics:
+            for metric_name in tracked_metrics:
+                score = float(val_metrics[metric_name])
+                if metric_is_better(metric_name, score, best_scores[metric_name], cfg.min_delta):
+                    best_scores[metric_name] = score
+                    metric_best_rows[metric_name] = dict(row)
+                    save_checkpoint(
+                        run_dir / "checkpoints" / f"best_{metric_name}.pth",
+                        model,
+                        optimizer,
+                        scheduler,
+                        epoch,
+                        score,
+                        cfg,
+                    )
+                    logger.info("Saved best_%s checkpoint: %.4f", metric_name, score)
+                    if metric_name == cfg.primary_metric:
+                        primary_improved = True
+                        save_checkpoint(
+                            run_dir / "checkpoints" / "best.pth",
+                            model,
+                            optimizer,
+                            scheduler,
+                            epoch,
+                            score,
+                            cfg,
+                        )
+                        logger.info("Updated primary best checkpoint (%s): %.4f", cfg.primary_metric, score)
+
+            if primary_improved:
+                epochs_without_improvement = 0
+            else:
+                epochs_without_improvement += 1
+
+        row["best_miou"] = "" if best_scores["miou"] == float("-inf") else best_scores["miou"]
+        row["best_iou_fg_so_far"] = "" if best_scores["iou_fg"] == float("-inf") else best_scores["iou_fg"]
+        row["best_f1_so_far"] = "" if best_scores["f1"] == float("-inf") else best_scores["f1"]
+        row["best_val_loss_so_far"] = "" if best_scores["val_loss"] == float("inf") else best_scores["val_loss"]
+        append_metrics(metrics_path, row)
+        final_row = row
+        best_row = metric_best_rows.get("miou", best_row)
+
+        primary_best = best_scores[cfg.primary_metric]
+        checkpoint_metric = 0.0 if primary_best in {float("-inf"), float("inf")} else primary_best
         if (epoch + 1) % cfg.save_interval == 0 or epoch + 1 == cfg.epochs:
             save_checkpoint(
                 run_dir / "checkpoints" / "last.pth",
@@ -1040,27 +1172,40 @@ def run_experiment(cfg):
                 optimizer,
                 scheduler,
                 epoch,
-                best_metric,
+                checkpoint_metric,
                 cfg,
             )
 
-        row = {
-            "epoch": epoch + 1,
-            "train_loss": avg_train_loss,
-            "lr": optimizer.param_groups[0]["lr"],
-            "best_miou": best_metric,
-        }
-        row.update(val_metrics)
-        append_metrics(metrics_path, row)
-        final_row = row
-        if val_metrics and float(val_metrics["miou"]) >= float(best_row.get("miou", -1.0)):
-            best_row = row
+        if (
+            cfg.early_stopping_patience > 0
+            and val_metrics
+            and epochs_without_improvement >= cfg.early_stopping_patience
+        ):
+            logger.info(
+                "Early stopping at epoch %d: no %s improvement for %d validations.",
+                epoch + 1,
+                cfg.primary_metric,
+                epochs_without_improvement,
+            )
+            break
 
-    logger.info("Training completed. Best mIoU: %.4f", best_metric)
+    best_miou = best_scores["miou"]
+    if best_miou == float("-inf"):
+        best_miou = 0.0
+    logger.info("Training completed. Best mIoU: %.4f", best_miou)
     if cfg.summary_csv:
         append_summary(
             cfg.summary_csv,
-            make_summary_row(cfg, run_dir, "completed", train_samples, val_samples, best_row, final_row),
+            make_summary_row(
+                cfg,
+                run_dir,
+                "completed",
+                train_samples,
+                val_samples,
+                best_row,
+                final_row,
+                metric_best_rows,
+            ),
         )
         logger.info("Appended run summary: %s", cfg.summary_csv)
     return run_dir

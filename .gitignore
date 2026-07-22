@@ -12,9 +12,10 @@
 .env
 
 outputs/
+outputs_*/
 outputs_ablation/
 outputs_ablation_*/
-outputs_jstar/
+outputs_experiments/
 ana/
 
 anasis_report.md

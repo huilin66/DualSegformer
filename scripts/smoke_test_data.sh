@@ -9,7 +9,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${REPO_ROOT}"
 
 PYTHON_BIN="${PYTHON_BIN:-python}"
-OUTPUT_DIR="${OUTPUT_DIR:-outputs_jstar/smoke/data}"
+OUTPUT_DIR="${OUTPUT_DIR:-outputs_experiments/smoke/data}"
 SUMMARY_CSV="${SUMMARY_CSV:-${OUTPUT_DIR}/smoke_data_summary.csv}"
 SMOKE_STATUS_CSV="${SMOKE_STATUS_CSV:-${OUTPUT_DIR}/smoke_status.csv}"
 TRAIN_SPLIT="${TRAIN_SPLIT:-train}"

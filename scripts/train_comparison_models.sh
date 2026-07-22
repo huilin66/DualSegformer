@@ -15,7 +15,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${REPO_ROOT}"
 
 PYTHON_BIN="${PYTHON_BIN:-python}"
-OUTPUT_DIR="${OUTPUT_DIR:-outputs_jstar/comparison}"
+OUTPUT_DIR="${OUTPUT_DIR:-outputs_experiments/comparison}"
 SUMMARY_CSV="${SUMMARY_CSV:-${OUTPUT_DIR}/comparison_summary.csv}"
 TRAIN_SPLIT="${TRAIN_SPLIT:-train}"
 VAL_SPLIT="${VAL_SPLIT:-test}"
