@@ -58,6 +58,7 @@ DEFAULTS = {
     "early_stopping_patience": 0,
     "min_delta": 0.0,
     "normalization": "auto",
+    "dataset_type": "mmlsv2",
     "dry_run": False,
     "skip_model_init": False,
 }
@@ -168,6 +169,12 @@ def build_parser(defaults=None):
         default=defaults["normalization"],
         choices=["auto", "train", "val", "test", "none"],
     )
+    parser.add_argument(
+        "--dataset-type",
+        default=defaults["dataset_type"],
+        choices=["mars_ls", "mmlsv2"],
+        help="Dataset type: mars_ls (raw DN, apply mean/std norm) or mmlsv2 (pre-normalized [0,1], skip norm).",
+    )
     parser.add_argument("--dry-run", action="store_true", default=defaults["dry_run"])
     parser.add_argument(
         "--skip-model-init",
@@ -224,6 +231,7 @@ class RunConfig:
     early_stopping_patience: int
     min_delta: float
     normalization: str
+    dataset_type: str
     dry_run: bool
     skip_model_init: bool
 
@@ -355,6 +363,9 @@ class FileListMarsDataset:
         )
 
         norm_key = cfg.normalization if cfg.normalization != "auto" else split
+        # mmlsv2 data is pre-normalized to [0,1], always skip normalization
+        if getattr(cfg, "dataset_type", "mars_ls") == "mmlsv2":
+            norm_key = "none"
         if norm_key == "train":
             mean, std = MARS_MEAN_TRAIN, MARS_STD_TRAIN
         elif norm_key == "val":
@@ -466,7 +477,11 @@ def build_datasets(cfg, logger):
     import torch
     import torch.nn.functional as F
 
-    from dataset import MarsSegDataset, MosaicCastDataset
+    from dataset import MarsSegDataset, MMLSV2Dataset, MosaicCastDataset
+
+    # Select dataset class based on dataset_type
+    DatasetClass = MMLSV2Dataset if cfg.dataset_type == "mmlsv2" else MarsSegDataset
+    logger.info("Dataset type: %s -> using %s", cfg.dataset_type, DatasetClass.__name__)
 
     if cfg.split_file:
         rows = read_split_rows(cfg.split_file)
@@ -479,7 +494,7 @@ def build_datasets(cfg, logger):
         train_dataset = FileListMarsDataset(cfg.data_root, train_rows, cfg.train_split, cfg, True)
         val_dataset = FileListMarsDataset(cfg.data_root, val_rows, cfg.val_split, cfg, False)
     else:
-        train_dataset = MarsSegDataset(
+        train_dataset = DatasetClass(
             root_dir=cfg.data_root, split=cfg.train_split, size=cfg.input_size
         )
         val_mask_dir = Path(cfg.data_root) / cfg.val_split / "masks"
@@ -489,7 +504,7 @@ def build_datasets(cfg, logger):
             )
             logger.info("Using labeled %s split for validation.", cfg.val_split)
         else:
-            val_dataset = MarsSegDataset(
+            val_dataset = DatasetClass(
                 root_dir=cfg.data_root, split=cfg.val_split, size=cfg.input_size
             )
         if cfg.augmentation.lower() == "none" and hasattr(train_dataset, "augmentor"):
