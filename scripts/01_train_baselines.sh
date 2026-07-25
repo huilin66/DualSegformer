@@ -26,6 +26,8 @@ NUM_WORKERS="${NUM_WORKERS:-4}"
 DEVICE="${DEVICE:-auto}"
 PRETRAIN="${PRETRAIN:-true}"
 MIXED_PRECISION="${MIXED_PRECISION:-true}"
+MAX_TRAIN_SAMPLES="${MAX_TRAIN_SAMPLES:-0}"
+MAX_VAL_SAMPLES="${MAX_VAL_SAMPLES:-0}"
 
 run_baseline() {
   experiment="$1"
@@ -51,7 +53,9 @@ run_baseline() {
       --num-workers "${NUM_WORKERS}" \
       --device "${DEVICE}" \
       --mixed-precision "${MIXED_PRECISION}" \
-      --normalization none
+      --normalization none \
+      --max-train-samples "${MAX_TRAIN_SAMPLES}" \
+      --max-val-samples "${MAX_VAL_SAMPLES}"
   done
 }
 

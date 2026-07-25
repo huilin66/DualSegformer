@@ -9,6 +9,7 @@ set -eu
 #   DATA_ROOT=/path/to/mmlsv2 sh scripts/00_run_skg_training_pipeline.sh
 #
 # Useful staged runs:
+#   STAGES="smoke" sh scripts/00_run_skg_training_pipeline.sh
 #   STAGES="baselines" sh scripts/00_run_skg_training_pipeline.sh
 #   STAGES="prototypes ablation" SEEDS="42" sh scripts/00_run_skg_training_pipeline.sh
 #   SEEDS="42 123 7" K_VALUES="1 2 4 8" sh scripts/00_run_skg_training_pipeline.sh
@@ -28,6 +29,12 @@ has_stage() {
   done
   return 1
 }
+
+if has_stage "smoke"; then
+  echo ""
+  echo "######## Smoke test: all implemented tasks ########"
+  sh scripts/00_smoke_test_skg.sh
+fi
 
 if has_stage "baselines"; then
   echo ""

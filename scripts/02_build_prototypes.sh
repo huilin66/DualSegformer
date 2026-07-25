@@ -24,6 +24,7 @@ DESCRIPTOR_CONFIG="${DESCRIPTOR_CONFIG:-configs/descriptors/default.json}"
 DESCRIPTOR_NAME="${DESCRIPTOR_NAME:-default}"
 ARTIFACT_ROOT="${ARTIFACT_ROOT:-artifacts/prototypes}"
 MAX_PIXELS_PER_IMAGE="${MAX_PIXELS_PER_IMAGE:-2048}"
+MAX_SAMPLES="${MAX_SAMPLES:-0}"
 
 for seed in ${SEEDS}; do
   for k in ${K_VALUES}; do
@@ -36,6 +37,7 @@ for seed in ${SEEDS}; do
       --normalization "${NORMALIZATION}" \
       --max-pixels-per-image "${MAX_PIXELS_PER_IMAGE}" \
       --seed "${seed}" \
+      --max-samples "${MAX_SAMPLES}" \
       --output "${output}"
   done
 done

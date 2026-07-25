@@ -26,6 +26,7 @@ class PrototypeBuildConfig:
     max_pixels_per_image: int = 2048
     normalization_pixels_per_image: int = 32768
     seed: int = 42
+    max_samples: int = 0
 
 
 def list_labeled_samples(root_dir: str | Path, split: str) -> list[tuple[Path, Path]]:
@@ -110,6 +111,8 @@ def build_prototype_artifact(
     if config.split != "train":
         raise ValueError("Official prototypes must be built from split='train' only")
     samples = list_labeled_samples(config.root_dir, config.split)
+    if config.max_samples > 0:
+        samples = samples[: config.max_samples]
     normalizer = compute_channel_normalizer(
         [image for image, _ in samples],
         mode=config.normalization,
@@ -164,6 +167,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--max-pixels-per-image", type=int, default=2048)
     parser.add_argument("--normalization-pixels-per-image", type=int, default=32768)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--max-samples", type=int, default=0, help="Use first N train images; intended for smoke tests only.")
     parser.add_argument("--output", required=True)
     args = parser.parse_args(argv)
     if not args.data_root:
@@ -177,6 +181,7 @@ def main(argv: list[str] | None = None) -> None:
         max_pixels_per_image=args.max_pixels_per_image,
         normalization_pixels_per_image=args.normalization_pixels_per_image,
         seed=args.seed,
+        max_samples=args.max_samples,
     )
     metadata = build_prototype_artifact(config, load_descriptor_config(args.descriptor_config), args.output)
     print(json.dumps(metadata, indent=2, ensure_ascii=False))

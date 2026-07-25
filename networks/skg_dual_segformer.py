@@ -110,6 +110,16 @@ class SKGDualSegFormer(nn.Module):
             raise ValueError(
                 f"knowledge stage {max(self.knowledge_stages)} is unavailable; encoder has stages 1..{len(main_channels) - 1}"
             )
+        unavailable_knowledge_stages = [
+            stage
+            for stage in self.knowledge_stages
+            if main_channels[stage] <= 0 or aux_channels[stage] <= 0
+        ]
+        if unavailable_knowledge_stages:
+            raise ValueError(
+                "knowledge stages include zero-channel encoder placeholders: "
+                f"{unavailable_knowledge_stages}. Choose actual feature stages instead."
+            )
 
         self.descriptor = SpectralDescriptor(descriptor_config)
         self.prototype_prior: PrototypePrior | None = None
@@ -133,6 +143,11 @@ class SKGDualSegFormer(nn.Module):
         for stage in range(1, len(main_channels)):
             key = str(stage)
             out_channels = main_channels[stage]
+            # timm/SMP may insert an empty feature-map placeholder (0 channels)
+            # into the feature list. It must pass through untouched: creating a
+            # Conv2d(0, 0, ...) here produced the B4 runtime error.
+            if out_channels <= 0 or aux_channels[stage] <= 0:
+                continue
             if fusion == "cat":
                 self.concat_fusions[key] = nn.Conv2d(
                     main_channels[stage] + aux_channels[stage], out_channels, kernel_size=1, bias=False
@@ -210,6 +225,9 @@ class SKGDualSegFormer(nn.Module):
         gates: dict[str, torch.Tensor] = {}
         for stage, (vn, swir) in enumerate(zip(vn_features[1:], swir_features[1:]), start=1):
             key = str(stage)
+            if vn.size(1) == 0 or swir.size(1) == 0:
+                fused_features.append(vn)
+                continue
             if self.fusion == "knowledge_gate" and stage in self.knowledge_stages:
                 fused, gate = self.knowledge_fusions[key](vn, swir, descriptor, prior_result["posterior"])
                 gates[f"stage{stage}"] = gate

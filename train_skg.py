@@ -535,7 +535,7 @@ def run(config: TrainConfig) -> Path:
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.lr, weight_decay=config.weight_decay, betas=(0.9, 0.999))
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs) if config.scheduler == "cosine" else None
     autocast_enabled = config.mixed_precision and device.type == "cuda"
-    scaler = torch.cuda.amp.GradScaler(enabled=autocast_enabled)
+    scaler = torch.amp.GradScaler("cuda", enabled=autocast_enabled)
     start_epoch, best_iou_fg = (0, -np.inf)
     if config.resume:
         start_epoch, best_iou_fg = load_checkpoint(config.resume, model, optimizer, scheduler)

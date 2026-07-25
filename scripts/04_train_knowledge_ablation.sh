@@ -30,6 +30,8 @@ NUM_WORKERS="${NUM_WORKERS:-4}"
 DEVICE="${DEVICE:-auto}"
 PRETRAIN="${PRETRAIN:-true}"
 MIXED_PRECISION="${MIXED_PRECISION:-true}"
+MAX_TRAIN_SAMPLES="${MAX_TRAIN_SAMPLES:-0}"
+MAX_VAL_SAMPLES="${MAX_VAL_SAMPLES:-0}"
 
 run_ablation() {
   experiment="$1"
@@ -76,6 +78,8 @@ run_ablation() {
       --device "${DEVICE}" \
       --mixed-precision "${MIXED_PRECISION}" \
       --normalization auto \
+      --max-train-samples "${MAX_TRAIN_SAMPLES}" \
+      --max-val-samples "${MAX_VAL_SAMPLES}" \
       --prototype-path "${prototype_path}"
   done
 }
