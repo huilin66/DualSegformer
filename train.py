@@ -14,7 +14,7 @@ from env_utils import get_data_root
 from losses import UnetFormerLoss
 from networks import get_model
 
-RANDOM_SEED = 42
+RANDOM_SEED = int(os.environ.get("TRAIN_SEED", "42"))
 
 
 def set_seed(seed=42):
@@ -96,18 +96,24 @@ def train_pipeline(model_name, conduct_val=False):
         BATCH_SIZE = 8
     else:
         BATCH_SIZE = 32
-    LR = 1e-4
-    WEIGHT_DECAY = 5e-4
-    EPOCHS = 100
-    VAL_INTERVAL = 1
+    BATCH_SIZE = int(os.environ.get("TRAIN_BATCH_SIZE", BATCH_SIZE))
+    LR = float(os.environ.get("TRAIN_LR", "1e-4"))
+    WEIGHT_DECAY = float(os.environ.get("TRAIN_WEIGHT_DECAY", "5e-4"))
+    EPOCHS = int(os.environ.get("TRAIN_EPOCHS", "100"))
+    VAL_INTERVAL = int(os.environ.get("TRAIN_VAL_INTERVAL", "1"))
     IN_CHANNELS = 7
 
-    DATASET_ROOT = get_data_root(
-        "/scrinvme/huilin/bdd/cp_data/mars_seg/Mars_LSc_2025_dataset_1st_phase_updateB2"
+    DATASET_ROOT = (
+        os.environ.get("MARS_DATA_ROOT")
+        or os.environ.get("DATA_ROOT")
+        or get_data_root(
+            "/scrinvme/huilin/bdd/cp_data/mars_seg/Mars_LSc_2025_dataset_1st_phase_updateB2"
+        )
     )
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    EXPERIMENT_DIR = os.path.join("outputs", timestamp)
+    OUTPUT_ROOT = os.environ.get("TRAIN_OUTPUT_ROOT", "outputs")
+    EXPERIMENT_DIR = os.path.join(OUTPUT_ROOT, timestamp)
 
     CHECKPOINT_DIR = os.path.join(EXPERIMENT_DIR, "checkpoints")
     LOG_DIR = os.path.join(EXPERIMENT_DIR, "logs")
@@ -117,13 +123,16 @@ def train_pipeline(model_name, conduct_val=False):
     os.makedirs(LOG_DIR, exist_ok=True)
     os.makedirs(TB_DIR, exist_ok=True)
 
-    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    requested_device = os.environ.get("TRAIN_DEVICE", "cuda:1")
+    device = torch.device(requested_device if torch.cuda.is_available() else "cpu")
     writer = SummaryWriter(log_dir=TB_DIR)
     logger, _ = setup_logger(LOG_DIR)
     logger.info(f"Model: {model_name}")
     logger.info(f"Experiment started at {timestamp}")
     logger.info(f"Outputs will be saved to: {EXPERIMENT_DIR}")
     logger.info(f"Using device: {device}")
+    logger.info(f"Dataset root: {DATASET_ROOT}")
+    logger.info(f"Seed: {RANDOM_SEED} | epochs: {EPOCHS} | batch size: {BATCH_SIZE}")
 
     model = get_model(model_name, in_channels=IN_CHANNELS, num_classes=2).to(device)
 

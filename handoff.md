@@ -1,295 +1,420 @@
-# DualSegformer 实验交接文档
+# DualSegFormer 实验交接与工作计划
 
-更新时间：2026-07-22  
-仓库：`/localnvme/project/DualSegformer`
+更新时间：2026-10-03
+当前阶段：数据映射已完成，尚未开始正式复现实验
+核心顺序：**先复现比赛结果，再冻结基线，最后进行新模型尝试**
 
-## 目标
+## 1. 工作目标
 
-本仓库用于"火星滑坡分割"实验复盘、补充实验和可复现训练流程整理。仓库只组织、运行和分析实验，不进行论文正文编写。
+本阶段不直接追求新的网络结构，而是先回答两个问题：
 
-当前实验主线围绕 **chv1 通道划分 + 融合方式探索**：
+1. 当前代码、数据预处理和训练配置能否稳定复现旧版比赛方案；
+2. 在旧版结果可复核之后，新模型是否带来可重复、可解释的提升。
 
-```text
-channels1 = 0,1,2,3   (VIS/NIR 波段)
-channels2 = 4,5,6     (SWIR 波段)
-```
+实验结论必须区分以下三类结果：
 
-依据：
-- dataA（比赛数据）：chv1_add 最佳，online score = 0.8665
-- dataB（mmlsv2 发布数据）：chv1_cat 最佳，best IoU_fg = 0.8210
+~~~text
+历史比赛结果：官方/线上榜单结果，作为历史参考，不重新包装成本地验证结果
+复现结果：使用固定代码、固定数据和固定协议重新训练得到的结果
+新模型结果：在复现基线冻结后，使用相同协议进行的新增实验
+~~~
 
-## 数据集说明
+## 2. 当前环境与路径
 
-### 两套数据
+### 2.1 本地仓库
 
-| 数据集 | 路径 | 像素值域 | dataset_type |
-|--------|------|----------|:---:|
-| 比赛原始数据 (dataA) | `/scrinvme/huilin/bdd/cp_data/mars_seg/Mars_LSc_2025_dataset_1st_phase` | 原始 DN [0, ~5629] | `mars_ls` |
-| mmlsv2 发布数据 (dataB) | `/scrinvme/huilin/bdd/cp_data/mmlsv2` | 已归一化 [0, 1] | `mmlsv2` |
+~~~text
+仓库：E:\repository\DualSegformer
+本地比赛原始数据：Z:\huilin\bdd\cp_data\mars_seg
+本地 MMLSv2：Z:\huilin\bdd\cp_data\mmlsv2
+本地映射数据：Z:\huilin\bdd\cp_data\mmlsv2_mapped_mars_ls
+~~~
 
-**重要**：两组数据文件名和 mask 完全一致，但像素值无相关性（不是同一图像的不同归一化版本，而是不同处理流程的产物）。
+映射脚本：
 
-### 数据路径配置
+~~~text
+scripts/map_mmlsv2_to_mars.py
+~~~
 
-通过 `.env` 管理：
+映射报告：
 
-```env
-MMLSV2_DATA_ROOT=/scrinvme/huilin/bdd/cp_data/mmlsv2
-# MMLSV2_DATA_ROOT=/scrinvme/huilin/bdd/cp_data/mars_seg/Mars_LSc_2025_dataset_1st_phase
-```
+~~~text
+Z:\huilin\bdd\cp_data\mmlsv2_mapped_mars_ls\mapping_manifest.json
+~~~
 
-运行时也可临时覆盖：
+### 2.2 远端训练环境
 
-```sh
-DATA_ROOT=/path/to/data sh scripts/train_chv1_fusion_experiments.sh
-```
+~~~text
+SSH Host：rtx6000-2
+代码：/localnvme/project/DualSegformer
+远端映射数据：/scrinvme/huilin/bdd/cp_data/mmlsv2_mapped_mars_ls
+训练入口：/localnvme/project/DualSegformer/train.py
+~~~
 
-### 数据结构差异
+远端数据规模：
 
-```text
-mmlsv2:       train(465) / val(66) / test(133 images + 133 masks)  ← test 有标签
-比赛数据:     train(465) / val(66) / test(133 images, 无 masks)    ← test 无标签
-```
+~~~text
+train：465 images / 465 masks
+val：   66 images /  66 masks
+test： 133 images / 133 masks
+~~~
 
-**比赛数据必须用 `VAL_SPLIT=val`**，否则因 test/masks 不存在而报错。
+远端 train.py 已修改为读取环境变量：
 
-### 默认训练配置
+~~~bash
+export MARS_DATA_ROOT=/scrinvme/huilin/bdd/cp_data/mmlsv2_mapped_mars_ls
+~~~
 
-```text
-train_split = train
-val_split   = test     (mmlsv2 可用 test；比赛数据须改为 val)
-```
+优先级为：
 
-## 关键训练入口
+~~~text
+MARS_DATA_ROOT > DATA_ROOT > 原始比赛数据默认路径
+~~~
 
-主训练入口：`train_ablation.py`
+训练启动时会在日志中打印最终使用的数据根目录。原文件备份为：
 
-### 核心参数
+~~~text
+/localnvme/project/DualSegformer/train.py.bak
+~~~
 
-| 参数 | 说明 |
-|------|------|
-| `--dataset-type {mars_ls, mmlsv2}` | 数据类型。mars_ls 应用 mean/std 归一化；mmlsv2 跳过归一化 |
-| `--summary-csv` | 每个 run 自动追加一行结果到 CSV |
-| `--primary-metric` | best.pth 选择标准：miou / iou_fg / f1 / val_loss |
-| `--early-stopping-patience` | 基于 primary_metric 的早停（0=禁用） |
-| `--max-train-samples / --max-val-samples` | smoke test 或小样本 dry-run |
-| `--model-name auto --arch dual_segformer --encoder ... --channels1 ... --channels2 ... --fusion ...` | 灵活组装模型 |
+当前 SSH 非交互环境的系统 Python 只有 Python 3.10，尚未发现可直接使用的 torch、tifffile 和 Conda 环境。正式训练前必须先激活或配置包含项目依赖的环境。
 
-### 归一化逻辑
+### 2.3 Shell 实验入口
 
-```text
-dataset_type=mars_ls  → 使用 MARS_MEAN_TRAIN/STD_TRAIN 做标准化（适合原始 DN 数据）
-dataset_type=mmlsv2   → 跳过归一化，直接使用 [0,1] 值（MMLSV2Dataset 类）
-```
+顶层启动脚本为 `exp_train.sh`，默认只启动比赛复现组：
 
-`dataset.py` 中的 `MMLSV2Dataset` 继承 `MarsSegDataset`，禁用 mean/std 归一化。
+~~~bash
+bash exp_train.sh reproduce
+bash exp_train.sh fusion
+bash exp_train.sh capacity
+bash exp_train.sh new_model
+bash exp_train.sh all
+~~~
 
-### 每个 run 保存
+实验组的默认顺序是：比赛复现、旧模型融合消融、模型容量对比，最后才是 SKG 新模型。路径、seed、设备和 epoch 通过环境变量覆盖，具体配置见各组脚本。
 
-```text
-checkpoints/best.pth
-checkpoints/best_miou.pth
-checkpoints/best_iou_fg.pth
-checkpoints/best_f1.pth
-checkpoints/best_val_loss.pth
-checkpoints/last.pth
-```
+## 3. 数据映射结论
 
-## 脚本说明
+映射后的内部通道顺序为旧比赛顺序：
 
-### 1. 消融实验 (16 个)
+~~~text
+[Thermal, Slope, DEM, Grayscale, Red, Green, Blue]
+~~~
 
-```sh
-sh scripts/train_ablation_experiments.sh
-```
+MMLSv2 原始顺序为：
 
-输出：`outputs_experiments/ablation/ablation_summary.csv`
+~~~text
+[Red, Green, Blue, DEM, Slope, Thermal, Grayscale]
+~~~
 
-涵盖：架构贡献、通道划分、融合策略、损失函数、增强/Mosaic、Backbone 规模。
+映射同时完成通道重排和数值反归一化，使数据可以被旧版 MarsSegDataset 按比赛数据方式读取。
 
-### 2. 对比模型训练 (10 个)
+### 3.1 适用范围
 
-```sh
-sh scripts/train_comparison_models.sh
-```
+映射数据可以用于：
 
-输出：`outputs_experiments/comparison/comparison_summary.csv`
+- 复用旧版比赛代码；
+- 训练和验证旧版 DualSegFormer；
+- 在公开 test mask 上进行冻结后的本地评估；
+- 对比旧模型和新模型。
 
-涵盖：M3LSNet、OCRNet、UPerNet、SegFormer、DualSegFormer 各尺寸。
+但论文中必须称为：
 
-### 3. Chv1 融合探索 (默认 12 个)
+~~~text
+MMLSv2 converted to the original Mars-LS channel ordering and radiometric representation
+~~~
 
-```sh
-sh scripts/train_chv1_fusion_experiments.sh
-```
+不能把它描述为新的独立数据集，也不能把公开 MMLSv2 test 结果直接称为官方隐藏测试集成绩。
 
-输出：`outputs_experiments/chv1_fusion/chv1_fusion_summary.csv`
+### 3.2 已知差异
 
-实验矩阵：
+- train mask 有一个像素与本地比赛版本不同；
+- Slope 通道存在少量边界零值差异；
+- MMLSv2 的 test mask 是公开标签，比赛原始 test 没有本地公开 mask；
+- 映射数据用于复现输入格式，不代表可以重新获得官方线上 leaderboard 评价。
 
-```text
-# 核心融合对比 (5)
-exp_01_chv1_add / exp_02_chv1_cat / exp_03_chv1_att / exp_04_chv1_moe / exp_05_chv1_moev2
+## 4. 阶段 A：复现比赛结果
 
-# Loss 探索 (6, RUN_LOSS=1)
-exp_06~08: cat × {ce, dice, combined}
-exp_09~11: add × {ce, dice, combined}
+这一阶段完成前，不开始新模型结构搜索。
 
-# Mosaic 消融 (1)
-exp_12_chv1_cat_no_mosaic
+### A0. 环境和数据冒烟测试
 
-# 可选：无增强 (RUN_NOAUG=1)、输入尺寸 (RUN_SIZE=1)、Backbone (RUN_BACKBONE=1)
-```
+目标：确认训练环境、数据读取、归一化和 GPU 都正确。
 
-常用覆盖：
+检查项：
 
-```sh
-# mmlsv2 数据
-DATASET_TYPE=mmlsv2 sh scripts/train_chv1_fusion_experiments.sh
+- train.py 能通过语法检查；
+- MARS_DATA_ROOT 生效，日志打印映射数据路径；
+- train/val 数据数量分别为 465/66；
+- 图像读取后形状为 7 x 128 x 128；
+- mask 只包含 0/1；
+- 经过比赛 mean/std 后不存在 NaN 或 Inf；
+- cuda:1 能正常初始化；
+- 只运行一个 batch，确认 loss 可以反向传播。
 
-# 比赛数据
-DATA_ROOT=/scrinvme/.../Mars_LSc_2025_dataset_1st_phase VAL_SPLIT=val \
-  sh scripts/train_chv1_fusion_experiments.sh
+建议命令模板：
 
-# 多种子
-SEEDS="42 123 7" sh scripts/train_chv1_fusion_experiments.sh
+~~~bash
+cd /localnvme/project/DualSegformer
+export MARS_DATA_ROOT=/scrinvme/huilin/bdd/cp_data/mmlsv2_mapped_mars_ls
+python3 -m py_compile train.py scripts/train_competition_reproduction.py
+~~~
 
-# 全开
-SEEDS="42 123 7" RUN_SIZE=1 RUN_BACKBONE=1 RUN_NOAUG=1 \
-  sh scripts/train_chv1_fusion_experiments.sh
-```
+正式运行前需要先激活正确的 Python 环境。train.py 当前主程序会顺序运行多个模型；正式复现应使用本地单模型入口 scripts/train_competition_reproduction.py，避免一次提交完整模型列表。
 
-### 4. Smoke test
+### A1. 单模型复现
 
-```sh
-sh scripts/smoke_test_data.sh    # 数据链路
-sh scripts/smoke_test_train.sh   # 最小训练链路
-```
+首先只复现历史核心模型：
 
-### 5. 结果汇总
+~~~text
+dual_segformer_convnexttiny_chv1_add
+dual_segformer_convnextsmall_chv1_add
+~~~
 
-```sh
-python summarize_results.py outputs_experiments/ablation outputs_experiments/comparison
-python summarize_results.py outputs_experiments --recursive --sort-by best_iou_fg
-python summarize_results.py outputs_experiments -r --output results_summary.csv
-```
+固定配置：
 
-## 已确认的实验结论
+~~~text
+数据：mmlsv2_mapped_mars_ls
+训练 split：train
+验证 split：val
+输入尺寸：128 x 128
+Epoch：100
+Dual 模型 batch size：16
+优化器：AdamW
+学习率：1e-4
+weight decay：5e-4
+Scheduler：CosineAnnealingLR
+随机种子：42
+设备：cuda:1
+通道划分：chv1，即 0,1,2,3 / 4,5,6
+增强：沿用旧版代码，包括 MosaicCastDataset
+~~~
 
-### 比赛数据 (dataA) — online score
+注意：比赛 test 不参与 checkpoint 选择，验证必须使用 val。
 
-| 通道 | add | cat | att | moe |
-|:---:|:---:|:---:|:---:|:---:|
-| chv1 | **0.8665** | 0.8391 | 0.8372 | 0.7667 |
-| chv2 | 0.8628 | 0.8592 | 0.8562 | 0.8522 |
-| chv3 | 0.7646 | — | — | — |
+单模型启动命令：
 
-### mmlsv2 数据 (dataB) — 修复归一化后
+~~~bash
+python scripts/train_competition_reproduction.py \
+  --model-name dual_segformer_convnexttiny_chv1_add \
+  --seed 42 \
+  --device cuda:1
+~~~
 
-#### 消融实验完整结果 (`outputs_experiments/ablation/ablation_summary.csv`)
-
-数据：mmlsv2, train→test, 100 epochs, seed=42
-
-| # | 实验 | 模型/配置 | Loss | best_miou | best_iou_fg | best_f1 | best_epoch | final_iou_fg |
-|:---:|------|------|:---:|:---:|:---:|:---:|:---:|:---:|
-| 01 | single_segformer_tiny | 单流 baseline | unetformer | 0.8519 | 0.8085 | 0.8941 | 63 | 0.8014 |
-| 02 | dual_tiny_chv1_add | chv1 + add | unetformer | 0.8543 | 0.8109 | 0.8956 | 86 | 0.8103 |
-| 03 | dual_tiny_chv2_add | chv2 + add | unetformer | 0.8545 | 0.8116 | 0.8960 | 88 | 0.8112 |
-| 04 | dual_tiny_chv3_add | chv3 + add | unetformer | 0.8574 | 0.8152 | 0.8982 | 68 | 0.8097 |
-| **05** | **dual_tiny_chv1_cat** | **chv1 + cat** | unetformer | **0.8619** | **0.8210** | **0.9017** | 70 | 0.8204 |
-| 06 | dual_tiny_chv1_att | chv1 + att | unetformer | 0.8569 | 0.8148 | 0.8979 | 62 | 0.8107 |
-| 07 | dual_tiny_chv1_moe | chv1 + moe | unetformer | 0.8478 | 0.8030 | 0.8907 | 88 | 0.8023 |
-| 08 | dual_tiny_chv1_moev2 | chv1 + moev2 | unetformer | 0.8543 | 0.8109 | 0.8956 | 80 | 0.8085 |
-| 09 | dual_tiny_loss_combined | chv1 + add | combined | 0.8545 | 0.8108 | 0.8955 | 67 | 0.8078 |
-| 10 | dual_tiny_loss_ce | chv1 + add | ce | 0.8594 | 0.8179 | 0.8998 | 65 | 0.8110 |
-| 11 | dual_tiny_loss_dice | chv1 + add | dice | 0.8461 | 0.8006 | 0.8892 | 74 | 0.7910 |
-| 12 | dual_tiny_no_mosaic | chv1 + add, mosaic=0 | unetformer | 0.8557 | 0.8127 | 0.8967 | 70 | 0.8045 |
-| 13 | dual_tiny_no_aug_no_mosaic | chv1 + add, 无增强 | unetformer | 0.8402 | 0.7935 | 0.8849 | 42 | 0.7884 |
-| 14 | dual_small_chv1_add | chv1 + add (small) | unetformer | 0.8568 | 0.8142 | 0.8976 | 74 | 0.8136 |
-| 15 | dual_base_chv1_add | chv1 + add (base) | unetformer | 0.8583 | 0.8160 | 0.8987 | 84 | 0.8144 |
-
-#### Chv1 融合探索完整结果 (`outputs_experiments/chv1_fusion/chv1_fusion_summary.csv`)
-
-数据：mmlsv2, train→test, 100 epochs, seed=42, chv1 (0,1,2,3 / 4,5,6)
-
-| # | 实验 | 融合 | Loss | Mosaic | best_miou | best_iou_fg | best_f1 | best_epoch | final_iou_fg |
-|:---:|------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **02** | **chv1_cat** | **cat** | unetformer | 0.5 | **0.8619** | **0.8210** | **0.9017** | 70 | 0.8204 |
-| 09 | chv1_add_ce | add | ce | 0.5 | 0.8594 | 0.8179 | 0.8998 | 65 | 0.8110 |
-| 08 | chv1_cat_combined | cat | combined | 0.5 | 0.8570 | 0.8148 | 0.8980 | 71 | 0.8127 |
-| 03 | chv1_att | att | unetformer | 0.5 | 0.8569 | 0.8148 | 0.8979 | 62 | 0.8107 |
-| 06 | chv1_cat_ce | cat | ce | 0.5 | 0.8558 | 0.8122 | 0.8964 | 67 | 0.8108 |
-| 11 | chv1_add_combined | add | combined | 0.5 | 0.8545 | 0.8108 | 0.8955 | 67 | 0.8078 |
-| 05 | chv1_moev2 | moev2 | unetformer | 0.5 | 0.8543 | 0.8109 | 0.8956 | 80 | 0.8085 |
-| 01 | chv1_add | add | unetformer | 0.5 | 0.8543 | 0.8109 | 0.8956 | 86 | 0.8103 |
-| 07 | chv1_cat_dice | cat | dice | 0.5 | 0.8522 | 0.8092 | 0.8946 | 69 | 0.8025 |
-| 12 | chv1_cat_no_mosaic | cat | unetformer | 0.0 | 0.8507 | 0.8070 | 0.8932 | 79 | 0.8018 |
-| 10 | chv1_add_dice | add | dice | 0.5 | 0.8461 | 0.8006 | 0.8892 | 74 | 0.7910 |
-| 04 | chv1_moe | moe | unetformer | 0.5 | 0.8478 | 0.8030 | 0.8907 | 88 | 0.8023 |
-
-### 关键发现
-
-- chv1 在两组数据上均为最优通道划分，但最佳融合方式不同（dataA: add, dataB: cat）
-- chv3 在 dataA 上远差于 chv1（0.76 vs 0.87），在 dataB 上仅排第 4
-- 许多 run 后期出现前景坍缩（final IoU_fg = 0），不能只看 last.pth
-- 比赛数据与 mmlsv2 不是同一图像的归一化版本（像素相关性 ≈ 0）
-
-## 历史问题与修复
-
-| 问题 | 原因 | 修复 |
-|------|------|------|
-| mmlsv2 精度极低 (~0.55) | 对 [0,1] 数据错误应用 raw DN 的 mean/std | 新增 `--dataset-type mmlsv2` 跳过归一化 |
-| 比赛数据 test 验证报错 | test/masks 不存在，MarsSegDataset 返回字符串 | 使用 `VAL_SPLIT=val` |
-| 旧 outputs_jstar 结果不可靠 | 归一化 bug 未修复时跑的 | 已用修复后代码重跑 |
-
-## 推荐下一步
-
-1. **在 mmlsv2 上运行 chv1 融合探索**：
-   ```sh
-   DATASET_TYPE=mmlsv2 SEEDS="42 123 7" sh scripts/train_chv1_fusion_experiments.sh
-   ```
-
-2. **在比赛数据上验证**（需 VAL_SPLIT=val）：
-   ```sh
-   DATA_ROOT=/scrinvme/huilin/bdd/cp_data/mars_seg/Mars_LSc_2025_dataset_1st_phase \
-   VAL_SPLIT=val sh scripts/train_chv1_fusion_experiments.sh
-   ```
-
-3. **分析时优先比较**：
-   ```text
-   best_miou, best_iou_fg_value, best_f1_value
-   final_iou_fg（检测前景坍缩）
-   best_iou_fg_epoch（判断收敛速度）
-   ```
-
-## 依赖
-
-```text
-torch==2.5.1+cu121
-tifffile
-segmentation_models_pytorch
-timm
-python-dotenv
-tqdm
-numpy
-scipy (数据分析用)
-```
-
-Conda 环境：`M3LSNet`（路径 `/home/23039356r/.conda/envs/M3LSNet/bin/python`）
-
-## 文件结构
-
-```text
-train_ablation.py          # 主训练入口
-dataset.py                 # MarsSegDataset + MMLSV2Dataset
-env_utils.py               # .env 路径解析
-summarize_results.py       # 结果汇总表格工具
-scripts/
-  train_ablation_experiments.sh      # 消融实验 (16)
-  train_comparison_models.sh         # 对比模型 (10)
-  train_chv1_fusion_experiments.sh   # chv1 融合探索 (12+)
-  smoke_test_*.sh                    # 冒烟测试
-outputs_jstar/             # 历史实验结果（旧，有归一化 bug）
-outputs_experiments/       # 新实验输出目录
-training_metrics.csv       # 比赛提交历史 (242 条)
-```
+### A2. 历史模型矩阵复现
+
+单模型链路正常后，再依次运行：
+
+~~~text
+dual_segformer_convnexttiny_chv1_add
+dual_segformer_convnextsmall_chv1_add
+dual_segformer_convnextbase_chv1_add
+dual_segformer_convnextlarge_chv1_add
+~~~
+
+每个模型必须单独保存：
+
+~~~text
+训练配置
+Git commit
+随机种子
+数据路径和 mapping_manifest
+训练日志
+best checkpoint
+last checkpoint
+验证指标
+~~~
+
+### A3. 复现判定标准
+
+历史线上结果只作为参考，不要求本地 val 数值完全相等。复现通过应满足：
+
+- 数据读取和归一化链路一致；
+- 模型结构、通道划分、增强、loss 和优化器一致；
+- 同一 seed 重复运行结果接近；
+- 训练曲线和前景预测没有明显坍缩；
+- best checkpoint 和验证指标可以从日志中追溯；
+- 至少 Tiny 和 Small 两个核心模型成功完成。
+
+历史结果参考：
+
+~~~text
+比赛 dataA 的历史 chv1_add online score：0.8665
+旧记录中的 MMLSv2 train -> test chv1_cat：mIoU 0.8619，IoU_fg 0.8210，F1 0.9017
+~~~
+
+以上数值均为历史记录，不能替代本轮按 train -> val 协议产生的复现结果。
+
+### A4. 复现阶段报告
+
+复现阶段至少生成一张表：
+
+| Model | Channels | Fusion | Seed | Best mIoU | Best IoU_fg | Best F1 | Best epoch | Checkpoint |
+|---|---|---|---:|---:|---:|---:|---:|---|
+| Tiny | chv1 | add | 42 |  |  |  |  |  |
+| Small | chv1 | add | 42 |  |  |  |  |  |
+| Base | chv1 | add | 42 |  |  |  |  |  |
+| Large | chv1 | add | 42 |  |  |  |  |  |
+
+只有这张表和对应 checkpoint 都齐全后，才进入阶段 B。
+
+## 5. 阶段 B：冻结基线后的新模型尝试
+
+### B0. 冻结事项
+
+阶段 A 完成后冻结以下内容：
+
+- 映射数据版本和 mapping_manifest.json；
+- train/val/test split；
+- 输入尺寸和基础增强；
+- 评价指标；
+- baseline checkpoint 选择规则；
+- 训练 seed 集合；
+- test 只评估一次的流程。
+
+任何新模型都必须与冻结后的 baseline 使用同一数据和评价协议。
+
+### B1. 新模型主线
+
+当前仓库的新模型主线为 SKG-DualSegFormer，包括：
+
+~~~text
+single-stream / dual-stream baseline
+spectral descriptor
+train-only prototype bank
+knowledge-guided fusion
+knowledge consistency loss
+~~~
+
+建议顺序：
+
+1. 先运行与旧模型同规模的 single-stream 和 dual-stream baseline；
+2. 加入 spectral descriptor；
+3. 加入 prototype prior；
+4. 加入 knowledge-guided fusion；
+5. 最后加入 consistency loss；
+6. 每次只改变一个主要因素。
+
+### B2. 新模型实验矩阵
+
+最小矩阵：
+
+| 编号 | 模型 | 目的 |
+|---|---|---|
+| B-01 | Single SegFormer | 单流基线 |
+| B-02 | Dual SegFormer | 双流基线 |
+| B-03 | Dual + descriptor | 检查显式光谱描述子 |
+| B-04 | Dual + prototype | 检查类别原型先验 |
+| B-05 | Dual + knowledge fusion | 检查知识引导融合 |
+| B-06 | Full SKG-DualSegFormer | 完整方法 |
+| B-07 | Full - descriptor | 消融 |
+| B-08 | Full - prototype | 消融 |
+| B-09 | Full - consistency | 消融 |
+
+### B3. 新模型训练协议
+
+正式结果至少使用三个 seed：
+
+~~~text
+42, 123, 7
+~~~
+
+报告：
+
+~~~text
+mean ± std
+mIoU
+IoU_fg
+F1
+precision
+recall
+参数量
+FLOPs 或推理时间
+显存占用
+失败案例
+~~~
+
+归一化、光谱统计量、prototype 和聚类中心只能由 train split 计算。val 用于 checkpoint 选择和模型决策，test 必须在所有设计冻结后进行一次最终评估。
+
+如果新模型使用映射后的 raw-like 数据，不能使用 SKG 代码默认的 normalization=auto/none 直接输入，建议使用 train-only z-score，并在实验记录中明确说明。
+
+## 6. 数据与评价边界
+
+必须遵守：
+
+- MMLSv2 是公开的比赛数据发布版本，不是独立外部数据集；
+- 转换后的数据可作为比赛格式复现数据，但不能制造新的 leaderboard 结果；
+- 不使用 test mask 选择模型、调参或确定消融项；
+- 不将历史 top-2 线上成绩和本地 val/test 指标混在同一张表中；
+- 论文中单独标注“历史比赛结果”“本地复现结果”“新模型结果”；
+- 所有结果必须记录 seed、代码 commit、配置、数据版本和 checkpoint 路径。
+
+## 7. 当前待办清单
+
+### 阶段 A：复现比赛结果
+
+- [x] 完成 MMLSv2 到比赛格式的映射
+- [x] 导出映射数据并完成数量检查
+- [x] 修改远端 train.py 使用环境变量
+- [x] 远端 train.py 语法检查通过
+- [x] 编写按实验目的分组的 exp_train.sh 启动入口
+- [ ] 激活远端正确 Conda/虚拟环境
+- [ ] 完成单 batch 数据和 GPU smoke test
+- [ ] 复现 Tiny chv1_add
+- [ ] 复现 Small chv1_add
+- [ ] 复现 Base/Large chv1_add
+- [ ] 固定复现 baseline checkpoint
+- [ ] 整理 train -> val 结果表
+
+### 阶段 B：新模型
+
+- [ ] 固定 baseline 配置和 checkpoint
+- [ ] 运行 single/dual baseline
+- [ ] 运行 descriptor ablation
+- [ ] 运行 prototype ablation
+- [ ] 运行 knowledge fusion ablation
+- [ ] 运行 consistency loss ablation
+- [ ] 使用 42/123/7 三个 seed
+- [ ] 对冻结模型进行一次 test 评估
+- [ ] 统计 mean ± std、参数量、速度和显存
+- [ ] 保存可视化和失败案例
+- [ ] 更新论文实验表和方法限制
+
+## 8. 结果记录模板
+
+每个 run 至少记录：
+
+~~~text
+run_id:
+date:
+remote_host:
+git_commit:
+data_root:
+mapping_manifest:
+train_split:
+val_split:
+test_split:
+model:
+encoder:
+channels1:
+channels2:
+fusion:
+loss:
+augmentation:
+normalization:
+seed:
+epochs:
+batch_size:
+learning_rate:
+weight_decay:
+best_checkpoint:
+best_miou:
+best_iou_fg:
+best_f1:
+test_evaluated: yes/no
+notes:
+~~~
+
+## 9. 下一步
+
+下一步只做阶段 A：先在远端激活正确环境，确认 MARS_DATA_ROOT 生效，然后执行 `bash exp_train.sh reproduce` 完成比赛基线训练。未完成该复现前，不开始 SKG 或其他新模型搜索。
