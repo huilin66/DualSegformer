@@ -230,7 +230,7 @@ Dual 模型 batch size：16
 weight decay：5e-4
 Scheduler：CosineAnnealingLR
 随机种子：42
-设备：cuda:1
+设备：cuda:0
 通道划分：chv1，即 0,1,2,3 / 4,5,6
 增强：沿用旧版代码，包括 MosaicCastDataset
 ~~~
