@@ -362,12 +362,28 @@ def setup_logger(run_dir: Path) -> logging.Logger:
     return logger
 
 
-def save_checkpoint(path: Path, model, optimizer, scheduler, epoch: int, best_iou_fg: float, config: TrainConfig, normalizer: ChannelNormalizer) -> None:
+def save_checkpoint(
+    path: Path,
+    model,
+    optimizer,
+    scheduler,
+    epoch: int,
+    best_metric: float,
+    best_epoch: int,
+    best_metrics: dict[str, float],
+    config: TrainConfig,
+    normalizer: ChannelNormalizer,
+) -> None:
     torch.save(
         {
             "format": "skg_checkpoint_v1",
             "epoch": epoch,
-            "best_val_iou_fg": best_iou_fg,
+            "best_metric": float(best_metric),
+            "best_metric_name": "validation_mIoU",
+            "best_epoch": int(best_epoch),
+            "best_metrics": dict(best_metrics),
+            "best_val_miou": float(best_metrics.get("miou", best_metric)),
+            "best_val_iou_fg": float(best_metrics.get("iou_fg", -np.inf)),
             "config": asdict(config),
             "input_normalizer": normalizer.state_dict(),
             "model_state_dict": model.state_dict(),
@@ -378,14 +394,21 @@ def save_checkpoint(path: Path, model, optimizer, scheduler, epoch: int, best_io
     )
 
 
-def load_checkpoint(path: str, model, optimizer=None, scheduler=None) -> tuple[int, float]:
+def load_checkpoint(path: str, model, optimizer=None, scheduler=None) -> tuple[int, float, int, dict[str, float]]:
     checkpoint = torch.load(path, map_location="cpu")
     model.load_state_dict(checkpoint["model_state_dict"])
     if optimizer is not None and checkpoint.get("optimizer_state_dict"):
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
     if scheduler is not None and checkpoint.get("scheduler_state_dict"):
         scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
-    return int(checkpoint.get("epoch", -1)) + 1, float(checkpoint.get("best_val_iou_fg", -np.inf))
+    best_metrics = checkpoint.get("best_metrics", {})
+    best_miou = checkpoint.get("best_val_miou", checkpoint.get("best_metric", -np.inf))
+    return (
+        int(checkpoint.get("epoch", -1)) + 1,
+        float(best_miou),
+        int(checkpoint.get("best_epoch", 0)),
+        dict(best_metrics),
+    )
 
 
 def resolve_normalizer(config: TrainConfig, train_paths: list[Path], prototype_metadata: dict | None) -> ChannelNormalizer:
@@ -550,15 +573,15 @@ def run(config: TrainConfig) -> Path:
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs) if config.scheduler == "cosine" else None
     autocast_enabled = config.mixed_precision and device.type == "cuda"
     scaler = torch.amp.GradScaler("cuda", enabled=autocast_enabled)
-    start_epoch, best_iou_fg = (0, -np.inf)
+    start_epoch, best_miou, best_epoch, best_metrics = (0, -np.inf, 0, {})
     if config.resume:
-        start_epoch, best_iou_fg = load_checkpoint(config.resume, model, optimizer, scheduler)
-        logger.info("Resumed at epoch %d with best validation IoU_fg %.5f", start_epoch, best_iou_fg)
+        start_epoch, best_miou, best_epoch, best_metrics = load_checkpoint(
+            config.resume, model, optimizer, scheduler
+        )
+        logger.info("Resumed at epoch %d with best validation mIoU %.5f", start_epoch, best_miou)
 
-    best_miou = -np.inf
-    best_epoch = 0
+    max_val_iou_fg = float(best_metrics.get("iou_fg", -np.inf))
     no_improvement = 0
-    best_metrics: dict[str, float] = {}
     metrics_path = run_dir / "training_metrics.csv"
     for epoch in range(start_epoch, config.epochs):
         model.train()
@@ -606,32 +629,62 @@ def run(config: TrainConfig) -> Path:
             "val_iou_fg": val["iou_fg"],
             "val_f1": val["f1"],
         }
-        improved = val["iou_fg"] > best_iou_fg + config.min_delta
+        improved = val["miou"] > best_miou + config.min_delta
         if improved:
-            best_iou_fg = val["iou_fg"]
+            best_miou = val["miou"]
             best_metrics = dict(val)
             best_epoch = epoch + 1
             no_improvement = 0
-            save_checkpoint(run_dir / "checkpoints" / "best_iou_fg.pth", model, optimizer, scheduler, epoch, best_iou_fg, config, normalizer)
+            save_checkpoint(
+                run_dir / "checkpoints" / "best.pth",
+                model,
+                optimizer,
+                scheduler,
+                epoch,
+                best_miou,
+                best_epoch,
+                best_metrics,
+                config,
+                normalizer,
+            )
             if config.save_gates:
                 save_gate_snapshot(model, val_loader, device, run_dir / "visualizations" / "best_val_gates.npz")
         else:
             no_improvement += 1
-        if val["miou"] > best_miou:
-            best_miou = val["miou"]
-            save_checkpoint(run_dir / "checkpoints" / "best_miou.pth", model, optimizer, scheduler, epoch, best_iou_fg, config, normalizer)
-        save_checkpoint(run_dir / "checkpoints" / "last.pth", model, optimizer, scheduler, epoch, best_iou_fg, config, normalizer)
+        max_val_iou_fg = max(max_val_iou_fg, float(val["iou_fg"]))
+        save_checkpoint(
+            run_dir / "checkpoints" / "last.pth",
+            model,
+            optimizer,
+            scheduler,
+            epoch,
+            best_miou,
+            best_epoch,
+            best_metrics,
+            config,
+            normalizer,
+        )
         write_csv_row(metrics_path, row)
         logger.info(
             "Epoch %03d | train %.4f | val loss %.4f | mIoU %.4f | IoU_fg %.4f | F1 %.4f%s",
-            epoch + 1, row["train_loss"], val["loss"], val["miou"], val["iou_fg"], val["f1"], " | best" if improved else "",
+            epoch + 1, row["train_loss"], val["loss"], val["miou"], val["iou_fg"], val["f1"], " | best mIoU" if improved else "",
         )
         if config.early_stopping_patience > 0 and no_improvement >= config.early_stopping_patience:
-            logger.info("Early stopped after %d validations without val IoU_fg improvement.", no_improvement)
+            logger.info("Early stopped after %d validations without val mIoU improvement.", no_improvement)
             break
 
     with open(run_dir / "val_metrics.json", "w", encoding="utf-8") as handle:
-        json.dump({"best_val": best_metrics, "best_val_iou_fg": best_iou_fg, "best_val_miou": best_miou}, handle, indent=2)
+        json.dump(
+            {
+                "selection_metric": "validation_mIoU",
+                "best_val": best_metrics,
+                "best_val_iou_fg": best_metrics.get("iou_fg", ""),
+                "best_val_miou": best_miou,
+                "max_val_iou_fg": max_val_iou_fg,
+            },
+            handle,
+            indent=2,
+        )
     summary = {
         "completed_at": datetime.now(timezone.utc).isoformat(),
         "status": "completed",
@@ -646,9 +699,11 @@ def run(config: TrainConfig) -> Path:
         "prototype_k": config.prototype_k if config.prototype_path else "",
         "lambda_kc": config.knowledge_consistency_weight,
         "params": parameter_count,
+        "selection_metric": "validation_mIoU",
         "best_val_epoch": best_epoch,
-        "best_val_iou_fg": best_iou_fg,
-        "best_val_miou": best_metrics.get("miou", ""),
+        "best_val_iou_fg": best_metrics.get("iou_fg", ""),
+        "best_val_miou": best_miou,
+        "max_val_iou_fg": max_val_iou_fg,
         "final_val_iou_fg": val["iou_fg"],
         "test_iou_fg": "",
         "test_miou": "",
@@ -658,7 +713,7 @@ def run(config: TrainConfig) -> Path:
     }
     summary_name = "baseline_summary.csv" if config.stage == "baselines" else f"{config.stage}_summary.csv"
     write_csv_row(Path(config.output_dir) / summary_name, summary)
-    logger.info("Completed. Best validation IoU_fg: %.5f. No test data was loaded.", best_iou_fg)
+    logger.info("Completed. Best validation mIoU: %.5f. No test data was loaded.", best_miou)
     return run_dir
 
 

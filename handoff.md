@@ -492,7 +492,7 @@ Version Label: dualsegformer_paper_protocol_v1
 | H：历史兼容轨道 | 尽量复现旧版训练链路和历史结果 | 保留 legacy 原有 split-specific normalization、MosaicCast 和旧配置 | 复现/历史对照，不作为最严格的主表公平比较 |
 | P：论文公平轨道 | 比较 baseline、SKG 和消融 | 所有方法统一使用 train-only channel statistics；train/val/test 使用同一个 normalizer | 论文主表、消融表和最终 test |
 
-P 轨道的 train-only normalizer、descriptor 和 prototype 只能由 465 张 train 图像计算；val 只用于 checkpoint/模型决策；test 在协议冻结后才加载。当前 SKG 的 `auto/none` 和 legacy 的 batch-average 指标不能直接作为 P 轨道最终协议，正式运行前需要统一。
+P 轨道的 train-only normalizer、descriptor 和 prototype 只能由 465 张 train 图像计算；val 只用于 checkpoint/模型决策；test 在协议冻结后才加载。当前训练代码已经统一使用 global pixel-level mIoU 选择 best checkpoint；若使用映射后的 raw-like 数据，启动 SKG 时仍必须显式指定 `--normalization train_zscore`，不能沿用 `auto/none`。
 
 ### 10.3 固定评价协议
 
@@ -501,7 +501,7 @@ P 轨道的 train-only normalizer、descriptor 和 prototype 只能由 465 张 t
 - 所有方法均使用 validation global mIoU 选择 `best` checkpoint；`last` 只表示最后一个 epoch；
 - test 不参与调参、消融选择、early stopping 或 checkpoint 选择；
 - 论文主表报告 3 个 seed 的 `mean ± std`，不要只报告最优 seed；
-- 当前 legacy 的逐 batch 平均 mIoU 和历史线上 top-2 分数保留为兼容性记录，但不能与 P 轨道 global mIoU 混成同一列。
+- 历史旧 run 的逐 batch 平均 mIoU 和历史线上 top-2 分数保留为兼容性记录，但不能与 P 轨道 global mIoU 混成同一列。
 
 ### 10.4 Seed 和确定性策略
 

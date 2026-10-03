@@ -47,7 +47,7 @@ MAX_TRAIN_SAMPLES=2 MAX_VAL_SAMPLES=2 \
 sh scripts/04_train_knowledge_ablation.sh
 
 # Exercise the frozen-checkpoint evaluation entry point against val only.
-CHECKPOINT="${SMOKE_ROOT}/baselines/B4_dual_concat/${SEED}/checkpoints/best_iou_fg.pth"
+CHECKPOINT="${SMOKE_ROOT}/baselines/B4_dual_concat/${SEED}/checkpoints/best.pth"
 "${PYTHON_BIN}" eval_skg.py \
   --checkpoint "${CHECKPOINT}" \
   --split val \

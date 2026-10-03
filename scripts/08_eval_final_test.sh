@@ -8,7 +8,7 @@ SCRIPT_DIR="$(CDPATH= cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${REPO_ROOT}"
 
-: "${CHECKPOINT:?Set CHECKPOINT to a selected best_iou_fg.pth file}"
+: "${CHECKPOINT:?Set CHECKPOINT to a selected best.pth file}"
 PYTHON_BIN="${PYTHON_BIN:-python}"
 if [ -n "${DATA_ROOT:-}" ]; then
   export MMLSV2_DATA_ROOT="${DATA_ROOT}"

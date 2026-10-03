@@ -1,7 +1,6 @@
 import logging
 import json
 import os
-import random
 import shutil
 from datetime import datetime
 
@@ -9,7 +8,6 @@ from datetime import datetime
 # sets it explicitly for each seed; this fallback covers direct invocation.
 os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
 
-import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -86,13 +84,26 @@ def calculate_metrics(preds, targets):
     preds: [B, H, W] (0 or 1)
     targets: [B, H, W] (0 or 1)
     """
-    preds = preds.view(-1)
-    targets = targets.view(-1)
+    return calculate_metrics_from_confusion(calculate_confusion(preds, targets))
 
-    tp = (preds * targets).sum().float()
-    fp = ((preds == 1) & (targets == 0)).sum().float()
-    fn = ((preds == 0) & (targets == 1)).sum().float()
-    tn = ((preds == 0) & (targets == 0)).sum().float()
+
+def calculate_confusion(preds, targets):
+    """Return a global [target, prediction] confusion matrix for a batch."""
+
+    preds = preds.reshape(-1).long()
+    targets = targets.reshape(-1).long()
+    encoded = targets * 2 + preds
+    return torch.bincount(encoded, minlength=4).reshape(2, 2).to(torch.float64).cpu()
+
+
+def calculate_metrics_from_confusion(confusion):
+    """Calculate metrics from an accumulated pixel-level confusion matrix."""
+
+    confusion = torch.as_tensor(confusion, dtype=torch.float64)
+    tp = confusion[1, 1]
+    fp = confusion[0, 1]
+    fn = confusion[1, 0]
+    tn = confusion[0, 0]
 
     # Precision, Recall, F1 for Foreground
     precision = tp / (tp + fp + 1e-8)
@@ -167,7 +178,7 @@ def train_pipeline(model_name, conduct_val=False):
     os.makedirs(LOG_DIR, exist_ok=True)
     os.makedirs(TB_DIR, exist_ok=True)
 
-    requested_device = os.environ.get("TRAIN_DEVICE", "cuda:1")
+    requested_device = os.environ.get("TRAIN_DEVICE", "cuda:0")
     device = torch.device(requested_device if torch.cuda.is_available() else "cpu")
     writer = SummaryWriter(log_dir=TB_DIR)
     logger, _, log_file = setup_logger(LOG_DIR)
@@ -212,6 +223,7 @@ def train_pipeline(model_name, conduct_val=False):
         "validation_enabled": bool(conduct_val),
         "validation_interval": VAL_INTERVAL,
         "best_checkpoint_criterion": "validation_mIoU",
+        "validation_metric_aggregation": "global_pixel_confusion",
         "checkpoint_files": ["checkpoints/best.pth", "checkpoints/last.pth"],
         "log_file": os.path.abspath(log_file),
         "tensorboard_dir": os.path.abspath(TB_DIR),
@@ -319,14 +331,7 @@ def train_pipeline(model_name, conduct_val=False):
             model.eval()
             val_loss = 0
 
-            total_matches = {
-                "miou": [],
-                "precision": [],
-                "recall": [],
-                "f1": [],
-                "iou_fg": [],
-                "iou_bg": [],
-            }
+            total_confusion = torch.zeros((2, 2), dtype=torch.float64)
 
             with torch.no_grad():
                 pbar_val = tqdm(
@@ -361,14 +366,10 @@ def train_pipeline(model_name, conduct_val=False):
 
                     preds = torch.argmax(output, dim=1)
 
-                    metrics = calculate_metrics(preds, val_target)
-                    for k, v in metrics.items():
-                        total_matches[k].append(v)
+                    total_confusion += calculate_confusion(preds, val_target)
 
             avg_val_loss = val_loss / len(val_loader)
-            epoch_metrics = {
-                k: float(np.mean(v)) for k, v in total_matches.items()
-            }
+            epoch_metrics = calculate_metrics_from_confusion(total_confusion)
             last_metrics = {
                 "train_loss": float(avg_train_loss),
                 "val_loss": float(avg_val_loss),
@@ -376,7 +377,7 @@ def train_pipeline(model_name, conduct_val=False):
             }
             logger.info(
                 f"Epoch [{epoch + 1}/{EPOCHS}] Val Loss: {avg_val_loss:.4f} | "
-                f"mIoU: {epoch_metrics['miou']:.4f} | "
+                f"global mIoU: {epoch_metrics['miou']:.4f} | "
                 f"F1: {epoch_metrics['f1']:.4f} | "
                 f"IoU (FG): {epoch_metrics['iou_fg']:.4f} | "
                 f"IoU (BG): {epoch_metrics['iou_bg']:.4f}"
@@ -422,6 +423,7 @@ def train_pipeline(model_name, conduct_val=False):
         "tensorboard_dir": os.path.abspath(TB_DIR),
         "checkpoint_files": ["checkpoints/best.pth", "checkpoints/last.pth"],
         "best_checkpoint_criterion": "validation_mIoU",
+        "validation_metric_aggregation": "global_pixel_confusion",
         "best": {
             "epoch": best_epoch,
             "validation_miou": float(best_miou)

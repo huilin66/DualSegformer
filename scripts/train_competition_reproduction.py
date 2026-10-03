@@ -40,7 +40,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=int(os.environ.get("TRAIN_SEED", "42")))
     parser.add_argument(
         "--device",
-        default=os.environ.get("TRAIN_DEVICE", "cuda:1"),
+        default=os.environ.get("TRAIN_DEVICE", "cuda:0"),
         help="Requested torch device; falls back to CPU when CUDA is unavailable.",
     )
     parser.add_argument(
