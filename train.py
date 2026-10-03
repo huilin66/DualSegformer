@@ -1,6 +1,8 @@
 import logging
+import json
 import os
 import random
+import shutil
 from datetime import datetime
 
 import numpy as np
@@ -38,15 +40,42 @@ def seed_worker(worker_id):
 
 def setup_logger(save_dir):
     log_format = "%(asctime)s - %(levelname)s - %(message)s"
-    logging.basicConfig(level=logging.INFO, format=log_format)
-    logger = logging.getLogger()
-
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file = os.path.join(save_dir, f"train_log_{timestamp}.txt")
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setFormatter(logging.Formatter(log_format))
+    logger_name = f"dualsegformer.train.{os.path.abspath(save_dir)}"
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+
+    # A single train_pipeline invocation should own exactly one file and one
+    # console handler. This avoids duplicated lines when several experiments
+    # are launched in the same Python process.
+    for handler in list(logger.handlers):
+        handler.flush()
+        handler.close()
+        logger.removeHandler(handler)
+
+    formatter = logging.Formatter(log_format)
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
+    file_handler.setFormatter(formatter)
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
-    return logger, timestamp
+    logger.addHandler(stream_handler)
+    return logger, timestamp, log_file
+
+
+def write_json(path, payload):
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+
+
+def finalize_experiment(staging_dir, final_dir):
+    """Copy a completed run, including logs and checkpoints, to the dataset."""
+    os.makedirs(os.path.dirname(final_dir), exist_ok=True)
+    if os.path.exists(final_dir):
+        raise FileExistsError(f"Final output directory already exists: {final_dir}")
+    shutil.copytree(staging_dir, final_dir)
 
 
 def calculate_metrics(preds, targets):
@@ -113,7 +142,18 @@ def train_pipeline(model_name, conduct_val=False):
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     OUTPUT_ROOT = os.environ.get("TRAIN_OUTPUT_ROOT", "outputs")
-    EXPERIMENT_DIR = os.path.join(OUTPUT_ROOT, timestamp)
+    run_id = f"{model_name}_seed{RANDOM_SEED}_{timestamp}"
+    EXPERIMENT_DIR = os.path.join(OUTPUT_ROOT, run_id)
+
+    FINALIZE_RESULTS = os.environ.get("TRAIN_FINALIZE_RESULTS", "1").lower() not in {
+        "0",
+        "false",
+        "no",
+    }
+    FINAL_OUTPUT_ROOT = os.environ.get(
+        "TRAIN_FINAL_OUTPUT_ROOT", os.path.join(DATASET_ROOT, "outputs")
+    )
+    FINAL_EXPERIMENT_DIR = os.path.join(FINAL_OUTPUT_ROOT, run_id)
 
     CHECKPOINT_DIR = os.path.join(EXPERIMENT_DIR, "checkpoints")
     LOG_DIR = os.path.join(EXPERIMENT_DIR, "logs")
@@ -126,13 +166,45 @@ def train_pipeline(model_name, conduct_val=False):
     requested_device = os.environ.get("TRAIN_DEVICE", "cuda:1")
     device = torch.device(requested_device if torch.cuda.is_available() else "cpu")
     writer = SummaryWriter(log_dir=TB_DIR)
-    logger, _ = setup_logger(LOG_DIR)
+    logger, _, log_file = setup_logger(LOG_DIR)
     logger.info(f"Model: {model_name}")
     logger.info(f"Experiment started at {timestamp}")
-    logger.info(f"Outputs will be saved to: {EXPERIMENT_DIR}")
+    logger.info(f"Staging outputs: {EXPERIMENT_DIR}")
+    if FINALIZE_RESULTS:
+        logger.info(f"Final outputs after success: {FINAL_EXPERIMENT_DIR}")
+    else:
+        logger.info("Final dataset output copy is disabled")
     logger.info(f"Using device: {device}")
     logger.info(f"Dataset root: {DATASET_ROOT}")
     logger.info(f"Seed: {RANDOM_SEED} | epochs: {EPOCHS} | batch size: {BATCH_SIZE}")
+    logger.info(
+        "Checkpoint policy: last.pth is saved every epoch; best.pth is selected "
+        "by validation mIoU"
+    )
+
+    run_config = {
+        "run_id": run_id,
+        "model_name": model_name,
+        "seed": RANDOM_SEED,
+        "dataset_root": DATASET_ROOT,
+        "staging_output_dir": os.path.abspath(EXPERIMENT_DIR),
+        "final_output_dir": os.path.abspath(FINAL_EXPERIMENT_DIR)
+        if FINALIZE_RESULTS
+        else None,
+        "finalize_results": FINALIZE_RESULTS,
+        "device": str(device),
+        "epochs": EPOCHS,
+        "batch_size": BATCH_SIZE,
+        "learning_rate": LR,
+        "weight_decay": WEIGHT_DECAY,
+        "validation_enabled": bool(conduct_val),
+        "validation_interval": VAL_INTERVAL,
+        "best_checkpoint_criterion": "validation_mIoU",
+        "checkpoint_files": ["checkpoints/best.pth", "checkpoints/last.pth"],
+        "log_file": os.path.abspath(log_file),
+        "tensorboard_dir": os.path.abspath(TB_DIR),
+    }
+    write_json(os.path.join(EXPERIMENT_DIR, "run_config.json"), run_config)
 
     model = get_model(model_name, in_channels=IN_CHANNELS, num_classes=2).to(device)
 
@@ -182,7 +254,11 @@ def train_pipeline(model_name, conduct_val=False):
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
     criterion = UnetFormerLoss()
 
-    best_miou = 0.0
+    best_miou = float("-inf")
+    best_epoch = None
+    best_metrics = {}
+    last_epoch = None
+    last_metrics = {}
     logger.info("Start Training...")
     for epoch in range(EPOCHS):
         model.train()
@@ -220,6 +296,8 @@ def train_pipeline(model_name, conduct_val=False):
         avg_train_loss = train_loss / len(train_loader) if len(train_loader) > 0 else 0
         logger.info(f"Epoch [{epoch + 1}/{EPOCHS}] Train Loss: {avg_train_loss:.4f}")
         writer.add_scalar("Train/Epoch_Loss", avg_train_loss, epoch)
+        last_epoch = epoch + 1
+        last_metrics = {"train_loss": float(avg_train_loss)}
 
         # turn off validation in this task
         if conduct_val and val_loader and (epoch + 1) % VAL_INTERVAL == 0:
@@ -273,7 +351,14 @@ def train_pipeline(model_name, conduct_val=False):
                         total_matches[k].append(v)
 
             avg_val_loss = val_loss / len(val_loader)
-            epoch_metrics = {k: np.mean(v) for k, v in total_matches.items()}
+            epoch_metrics = {
+                k: float(np.mean(v)) for k, v in total_matches.items()
+            }
+            last_metrics = {
+                "train_loss": float(avg_train_loss),
+                "val_loss": float(avg_val_loss),
+                **epoch_metrics,
+            }
             logger.info(
                 f"Epoch [{epoch + 1}/{EPOCHS}] Val Loss: {avg_val_loss:.4f} | "
                 f"mIoU: {epoch_metrics['miou']:.4f} | "
@@ -291,13 +376,65 @@ def train_pipeline(model_name, conduct_val=False):
             writer.add_scalar("Val/IoU_BG", epoch_metrics["iou_bg"], epoch)
             if epoch_metrics["miou"] > best_miou:
                 best_miou = epoch_metrics["miou"]
+                best_epoch = epoch + 1
+                best_metrics = dict(last_metrics)
                 torch.save(model.state_dict(), os.path.join(CHECKPOINT_DIR, "best.pth"))
                 logger.info(f"New Best Model Saved! (mIoU: {best_miou:.4f})")
         scheduler.step()
         torch.save(model.state_dict(), os.path.join(CHECKPOINT_DIR, "last.pth"))
+        writer.flush()
 
-    writer.close()
     logger.info("Training Completed.")
+    if best_epoch is None:
+        logger.info("No best.pth was written because validation was disabled or empty.")
+    else:
+        logger.info(
+            f"Best checkpoint: epoch {best_epoch}, validation mIoU {best_miou:.4f}"
+        )
+    logger.info("Model checkpoints saved: best.pth and last.pth")
+
+    results = {
+        "status": "completed",
+        "run_id": run_id,
+        "model_name": model_name,
+        "seed": RANDOM_SEED,
+        "dataset_root": DATASET_ROOT,
+        "staging_output_dir": os.path.abspath(EXPERIMENT_DIR),
+        "final_output_dir": os.path.abspath(FINAL_EXPERIMENT_DIR)
+        if FINALIZE_RESULTS
+        else None,
+        "log_file": os.path.abspath(log_file),
+        "tensorboard_dir": os.path.abspath(TB_DIR),
+        "checkpoint_files": ["checkpoints/best.pth", "checkpoints/last.pth"],
+        "best_checkpoint_criterion": "validation_mIoU",
+        "best": {
+            "epoch": best_epoch,
+            "validation_miou": float(best_miou)
+            if best_epoch is not None
+            else None,
+            "metrics": best_metrics,
+        },
+        "last": {
+            "epoch": last_epoch,
+            "metrics": last_metrics,
+        },
+    }
+
+    # Close the event writer and flush the text log before copying the complete
+    # run directory. The staging directory remains available for recovery and
+    # debugging if finalization itself fails.
+    writer.flush()
+    writer.close()
+    write_json(os.path.join(EXPERIMENT_DIR, "results.json"), results)
+    for handler in list(logger.handlers):
+        handler.flush()
+        handler.close()
+        logger.removeHandler(handler)
+
+    if FINALIZE_RESULTS:
+        finalize_experiment(EXPERIMENT_DIR, FINAL_EXPERIMENT_DIR)
+
+    return results
 
 
 if __name__ == "__main__":

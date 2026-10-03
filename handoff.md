@@ -93,6 +93,31 @@ bash exp_train.sh all
 
 实验组的默认顺序是：比赛复现、旧模型融合消融、模型容量对比，最后才是 SKG 新模型。路径、seed、设备和 epoch 通过环境变量覆盖，具体配置见各组脚本。
 
+### 2.4 训练输出、日志和 checkpoint 规则
+
+训练期间，单次运行先写入代码项目下的暂存目录，例如：
+
+~~~text
+outputs_experiments/reproduction/<model>/seed42/<run_id>/
+~~~
+
+训练成功结束后，整个运行目录会复制到数据集根目录的：
+
+~~~text
+<MARS_DATA_ROOT>/outputs/<run_id>/
+~~~
+
+暂存目录默认保留，便于失败排查和恢复。最终目录包含：
+
+- `checkpoints/best.pth`：验证集 mIoU 最高的模型；
+- `checkpoints/last.pth`：最后一个 epoch 的模型；
+- `logs/train_log_*.txt`：配置、每个 epoch 的 train/val 指标、best 更新和完成状态；
+- `tensorboard/`：batch loss、epoch loss 和验证指标；
+- `run_config.json`：数据路径、seed、超参数、输出路径和 checkpoint 规则；
+- `results.json`：best/last epoch、指标和最终结果路径。
+
+模型权重仍只保留 `best.pth` 和 `last.pth` 两类。`best.pth` 的选择依据是验证集 `mIoU`，不是 test 指标；若关闭验证或验证集为空，则不会生成 `best.pth`。文本日志记录 epoch 级训练和验证信息，batch 级 loss 记录在 TensorBoard 中。
+
 ## 3. 数据映射结论
 
 映射后的内部通道顺序为旧比赛顺序：

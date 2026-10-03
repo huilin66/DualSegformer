@@ -46,6 +46,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output-root",
         default=os.environ.get("TRAIN_OUTPUT_ROOT", "outputs/reproduction"),
+        help="Project-side staging directory used while training.",
+    )
+    parser.add_argument(
+        "--final-output-root",
+        default=os.environ.get("TRAIN_FINAL_OUTPUT_ROOT", ""),
+        help="Dataset-side destination for the completed run; defaults to <data-root>/outputs.",
     )
     parser.add_argument("--epochs", type=int, default=int(os.environ.get("TRAIN_EPOCHS", "100")))
     parser.add_argument("--batch-size", type=int, default=0, help="0 keeps the model-specific legacy default.")
@@ -81,6 +87,9 @@ def configure_environment(args: argparse.Namespace) -> None:
     os.environ["TRAIN_SEED"] = str(args.seed)
     os.environ["TRAIN_DEVICE"] = args.device
     os.environ["TRAIN_OUTPUT_ROOT"] = str(Path(args.output_root).expanduser())
+    final_output_root = args.final_output_root or str(Path(data_root) / "outputs")
+    os.environ["TRAIN_FINAL_OUTPUT_ROOT"] = str(Path(final_output_root).expanduser())
+    os.environ["TRAIN_FINALIZE_RESULTS"] = "1"
     os.environ["TRAIN_EPOCHS"] = str(args.epochs)
     os.environ["TRAIN_LR"] = str(args.lr)
     os.environ["TRAIN_WEIGHT_DECAY"] = str(args.weight_decay)

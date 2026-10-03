@@ -19,6 +19,7 @@ LR="${LR:-0.0001}"
 WEIGHT_DECAY="${WEIGHT_DECAY:-0.0005}"
 VAL_INTERVAL="${VAL_INTERVAL:-1}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-outputs_experiments/reproduction}"
+FINAL_OUTPUT_ROOT="${FINAL_OUTPUT_ROOT:-${DATA_ROOT}/outputs}"
 GROUP_NAME="${GROUP_NAME:-competition_reproduction}"
 MODEL_NAMES="${MODEL_NAMES:-dual_segformer_convnextsmall_chv1_add}"
 
@@ -46,6 +47,7 @@ for model_name in ${MODEL_NAMES}; do
       --seed "${seed}" \
       --device "${DEVICE}" \
       --output-root "${run_output}" \
+      --final-output-root "${FINAL_OUTPUT_ROOT}" \
       --epochs "${EPOCHS}" \
       --batch-size "${BATCH_SIZE}" \
       --lr "${LR}" \
