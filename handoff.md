@@ -1,7 +1,7 @@
 # DualSegFormer 实验交接与工作计划
 
-更新时间：2026-10-03
-当前阶段：数据映射已完成，尚未开始正式复现实验
+更新时间：2026-10-04
+当前阶段：已完成一次单模型基线链路验证；论文级固定协议和多 seed 正式实验尚未启动
 核心顺序：**先复现比赛结果，再冻结基线，最后进行新模型尝试**
 
 ## 1. 工作目标
@@ -77,7 +77,15 @@ MARS_DATA_ROOT > DATA_ROOT > 原始比赛数据默认路径
 /localnvme/project/DualSegformer/train.py.bak
 ~~~
 
-当前 SSH 非交互环境的系统 Python 只有 Python 3.10，尚未发现可直接使用的 torch、tifffile 和 Conda 环境。正式训练前必须先激活或配置包含项目依赖的环境。
+当前正式训练环境为：
+
+~~~text
+/home/23039356r/.conda/envs/M3LSNet/bin/python
+Python 3.10.19 / PyTorch 2.5.1+cu121
+CUDA_VISIBLE_DEVICES=0（物理 GPU 0）
+~~~
+
+该环境已通过数据读取、模型初始化和训练链路检查。论文正式运行时固定记录 Python 环境、Git commit、GPU、数据 manifest 和 seed。
 
 ### 2.3 Shell 实验入口
 
@@ -117,6 +125,18 @@ outputs_experiments/reproduction/<model>/seed42/<run_id>/
 - `results.json`：best/last epoch、指标和最终结果路径。
 
 模型权重仍只保留 `best.pth` 和 `last.pth` 两类。`best.pth` 的选择依据是验证集 `mIoU`，不是 test 指标；若关闭验证或验证集为空，则不会生成 `best.pth`。文本日志记录 epoch 级训练和验证信息，batch 级 loss 记录在 TensorBoard 中。
+
+### 2.5 论文级可复现性设置
+
+本轮已将各训练入口的 seed 逻辑统一到 `reproducibility.py`：
+
+- Python、NumPy、PyTorch、CUDA 和 DataLoader worker 使用同一实验 seed；
+- 固定 `CUBLAS_WORKSPACE_CONFIG`，关闭 cuDNN benchmark 和 TF32；
+- `STRICT_DETERMINISM=1` 时，遇到不支持确定性的 CUDA 算子直接报错，而不是静默继续；
+- 启动脚本在 Python 进程启动前设置 `PYTHONHASHSEED`；
+- legacy、SKG 和 ablation run 记录 `reproducibility.json`、`runtime.json`，legacy 另外记录 `mapping_manifest` SHA-256 和 Git 状态。
+
+严格可复现的边界是“同一代码、同一数据文件、同一依赖环境、同一 GPU 和同一运行配置”。跨 GPU 或跨 PyTorch/CUDA 版本不承诺 bit-wise 完全一致。
 
 ## 3. 数据映射结论
 
@@ -174,7 +194,7 @@ MMLSv2 converted to the original Mars-LS channel ordering and radiometric repres
 - 图像读取后形状为 7 x 128 x 128；
 - mask 只包含 0/1；
 - 经过比赛 mean/std 后不存在 NaN 或 Inf；
-- cuda:1 能正常初始化；
+- cuda:0 能正常初始化；
 - 只运行一个 batch，确认 loss 可以反向传播。
 
 建议命令模板：
@@ -223,7 +243,7 @@ Scheduler：CosineAnnealingLR
 python scripts/train_competition_reproduction.py \
   --model-name dual_segformer_convnexttiny_chv1_add \
   --seed 42 \
-  --device cuda:1
+  --device cuda:0
 ~~~
 
 ### A2. 历史模型矩阵复现
@@ -442,4 +462,119 @@ notes:
 
 ## 9. 下一步
 
-下一步只做阶段 A：先在远端激活正确环境，确认 MARS_DATA_ROOT 生效，然后执行 `bash exp_train.sh reproduce` 完成比赛基线训练。未完成该复现前，不开始 SKG 或其他新模型搜索。
+下一步先做“确定性审计”，不启动完整实验矩阵：
+
+1. 在同一 commit、同一 GPU、同一数据 manifest、同一环境下，用同一 seed 重复两个短 run；
+2. 比较 `reproducibility.json`、训练曲线、验证指标和 checkpoint hash；
+3. 若 `STRICT_DETERMINISM=1` 报出不支持的算子，先定位并处理，再开始正式复现；
+4. 审计通过后，冻结论文协议，再运行阶段 A 的正式多 seed 实验。
+
+## 10. 论文级实验重做方案（2026-10-04）
+
+### 10.1 Material Passport
+
+~~~text
+Origin Skill: academic-research-suite / experiment-agent
+Origin Mode: experiment planning
+Origin Date: 2026-10-04
+Verification Status: code-level reproducibility hardening completed; protocol runs pending
+Version Label: dualsegformer_paper_protocol_v1
+~~~
+
+工作假设：`SKG-DualSegFormer` 是待投稿的主方法，旧版 `DualSegFormer` 是历史/公平基线。如果最终论文主方法仍是旧版模型，只需交换主方法和 baseline 的叙述，不改变数据、seed 和评价规则。
+
+### 10.2 两条实验轨道
+
+不能用一套结果同时回答“是否复现比赛”和“新方法是否公平提升”。因此分成：
+
+| 轨道 | 目的 | 预处理 | 结果用途 |
+|---|---|---|---|
+| H：历史兼容轨道 | 尽量复现旧版训练链路和历史结果 | 保留 legacy 原有 split-specific normalization、MosaicCast 和旧配置 | 复现/历史对照，不作为最严格的主表公平比较 |
+| P：论文公平轨道 | 比较 baseline、SKG 和消融 | 所有方法统一使用 train-only channel statistics；train/val/test 使用同一个 normalizer | 论文主表、消融表和最终 test |
+
+P 轨道的 train-only normalizer、descriptor 和 prototype 只能由 465 张 train 图像计算；val 只用于 checkpoint/模型决策；test 在协议冻结后才加载。当前 SKG 的 `auto/none` 和 legacy 的 batch-average 指标不能直接作为 P 轨道最终协议，正式运行前需要统一。
+
+### 10.3 固定评价协议
+
+- 主指标：全像素汇总 confusion matrix 计算的 global mIoU；
+- 次指标：IoU_fg、IoU_bg、F1、precision、recall；
+- 所有方法均使用 validation global mIoU 选择 `best` checkpoint；`last` 只表示最后一个 epoch；
+- test 不参与调参、消融选择、early stopping 或 checkpoint 选择；
+- 论文主表报告 3 个 seed 的 `mean ± std`，不要只报告最优 seed；
+- 当前 legacy 的逐 batch 平均 mIoU 和历史线上 top-2 分数保留为兼容性记录，但不能与 P 轨道 global mIoU 混成同一列。
+
+### 10.4 Seed 和确定性策略
+
+| 用途 | Seed | 说明 |
+|---|---|---|
+| 调试/冒烟 | 42 | 只验证代码，不进入论文统计 |
+| 正式结果 | 42、123、7 | baseline、主方法和关键消融使用相同 seed 集合 |
+| 确定性审计 | 固定 42 | 同配置重复两次，要求指标/曲线一致或差异可解释 |
+
+正式运行统一固定：`CUDA_VISIBLE_DEVICES=0`、`num_workers=4`、Python 环境、Git commit、数据 manifest hash、normalizer 文件和训练超参数。严格模式默认 `STRICT_DETERMINISM=1`；若某个模型确实包含无法确定性的算子，必须在日志中记录，不能把“近似可复现”写成完全可复现。
+
+### 10.5 分阶段实验矩阵
+
+#### Stage 0：确定性审计
+
+用 P 轨道配置、同一 seed 42 运行两个 2–5 epoch 的短实验。检查：
+
+- 两次的输入文件顺序、DataLoader generator 和 worker seed 一致；
+- loss/val 指标逐 epoch 一致；
+- `run_config`、normalizer、Git commit、manifest hash 一致；
+- 若保存权重，比较 checkpoint SHA-256。
+
+#### Stage A：历史基线和公平基线
+
+1. H 轨道：legacy Tiny/Small `chv1_add`，seed 42，作为历史兼容复现；
+2. P 轨道：Single-stream SegFormer；
+3. P 轨道：Dual-stream `add`；
+4. P 轨道：Dual-stream `cat`；
+5. P 轨道：选定的 legacy Small `chv1_add`，作为参数规模/历史模型对照。
+
+先用 seed 42 做配置检查；确认协议无误后，最终进入主表的 baseline 使用 42/123/7。Tiny/Small/Base/Large 容量扫描可先用单 seed，只有论文要比较的代表模型才做三 seed。
+
+#### Stage B：SKG 主方法和组件消融
+
+每次只增加一个主要组件，推荐顺序：
+
+| 编号 | 配置 | 要验证的问题 |
+|---|---|---|
+| B0 | Dual baseline | 新模型相对于双流基础结构的增益 |
+| B1 | + spectral descriptor | 显式光谱描述是否有效 |
+| B2 | + train-only prototype prior | 类别原型先验是否有效 |
+| B3 | + knowledge-guided fusion | 知识引导融合是否有效 |
+| B4 | + consistency loss | 一致性约束是否带来独立增益 |
+| B5 | Full SKG-DualSegFormer | 完整方法最终效果 |
+| B6 | Full - descriptor | 组件必要性 |
+| B7 | Full - prototype | 组件必要性 |
+| B8 | Full - consistency | 组件必要性 |
+
+探索性超参数（prototype K、temperature、loss weight、early stopping）只用 train/val 和固定 exploratory seed，不能反复查看 test 后再选择。最终配置冻结后，用 42/123/7 重跑主方法和关键 baseline。
+
+#### Stage C：效率、鲁棒性和可解释性
+
+对最终保留模型统一测量参数量、FLOPs 或单图推理时间、峰值显存和吞吐；保存代表性 TP/FP/FN/TN 图、不同模态缺失/噪声情况下的失败案例，以及 descriptor/prototype/gate 可视化。效率测试不得改变训练协议。
+
+#### Stage D：最终 test
+
+只有当数据、normalizer、模型结构、超参数、seed 集合和 checkpoint 选择全部冻结后，才对每个最终 run 的 `best` checkpoint 进行一次 public test 评估。映射后的 MMLSv2 test 有公开 mask，可以作为本地补充实验；论文中必须写成 converted/public test evaluation，不能称为官方隐藏 leaderboard 结果。
+
+### 10.6 论文结果表和质量门槛
+
+预期表格：
+
+1. 数据与训练协议表：split、通道顺序、normalization、输入尺寸、增强、optimizer、epoch、seed；
+2. 主结果表：Single/Dual/legacy/SKG，global mIoU 和次指标的 mean ± std；
+3. 组件消融表：B0–B8，保持同一 encoder、通道划分和训练预算；
+4. 效率表：参数、FLOPs/延迟、显存、精度；
+5. 可视化图：预测、边界错误、知识门控/原型响应和失败案例。
+
+进入下一阶段的门槛：
+
+- Stage 0 同 seed 重复通过；
+- 每个 run 能追溯到 commit、manifest、normalizer、seed 和 checkpoint；
+- 统一 validation global mIoU 选择规则；
+- 主表模型至少 3 个 seed；
+- test 未参与任何设计决策；
+- 结果同时报告均值、标准差和样本数量，不以单次最好结果替代统计结果。

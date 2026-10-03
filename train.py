@@ -5,6 +5,10 @@ import random
 import shutil
 from datetime import datetime
 
+# This must be present before CUDA kernels are first used.  The launcher also
+# sets it explicitly for each seed; this fallback covers direct invocation.
+os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
@@ -15,27 +19,25 @@ from dataset import MarsSegDataset, MosaicCastDataset
 from env_utils import get_data_root
 from losses import UnetFormerLoss
 from networks import get_model
+from reproducibility import (
+    env_bool,
+    file_sha256,
+    repository_metadata,
+    runtime_metadata,
+    seed_worker as shared_seed_worker,
+    set_global_seed,
+)
 
 RANDOM_SEED = int(os.environ.get("TRAIN_SEED", "42"))
+STRICT_DETERMINISM = env_bool("TRAIN_STRICT_DETERMINISM", False)
 
 
 def set_seed(seed=42):
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.deterministic = True
-    torch.use_deterministic_algorithms(True, warn_only=True)
+    return set_global_seed(seed, deterministic=True, strict=STRICT_DETERMINISM)
 
 
 def seed_worker(worker_id):
-    worker_seed = torch.initial_seed() % 2**32
-    np.random.seed(worker_seed)
-    random.seed(worker_seed)
+    return shared_seed_worker(worker_id)
 
 
 def setup_logger(save_dir):
@@ -113,7 +115,7 @@ def calculate_metrics(preds, targets):
 
 
 def train_pipeline(model_name, conduct_val=False):
-    set_seed(RANDOM_SEED)
+    reproducibility = set_seed(RANDOM_SEED)
 
     if model_name.startswith("dual_"):
         BATCH_SIZE = 16
@@ -130,6 +132,7 @@ def train_pipeline(model_name, conduct_val=False):
     WEIGHT_DECAY = float(os.environ.get("TRAIN_WEIGHT_DECAY", "5e-4"))
     EPOCHS = int(os.environ.get("TRAIN_EPOCHS", "100"))
     VAL_INTERVAL = int(os.environ.get("TRAIN_VAL_INTERVAL", "1"))
+    NUM_WORKERS = int(os.environ.get("TRAIN_NUM_WORKERS", "4"))
     IN_CHANNELS = 7
 
     DATASET_ROOT = (
@@ -154,6 +157,7 @@ def train_pipeline(model_name, conduct_val=False):
         "TRAIN_FINAL_OUTPUT_ROOT", os.path.join(DATASET_ROOT, "outputs")
     )
     FINAL_EXPERIMENT_DIR = os.path.join(FINAL_OUTPUT_ROOT, run_id)
+    mapping_manifest = os.path.join(DATASET_ROOT, "mapping_manifest.json")
 
     CHECKPOINT_DIR = os.path.join(EXPERIMENT_DIR, "checkpoints")
     LOG_DIR = os.path.join(EXPERIMENT_DIR, "logs")
@@ -176,7 +180,10 @@ def train_pipeline(model_name, conduct_val=False):
         logger.info("Final dataset output copy is disabled")
     logger.info(f"Using device: {device}")
     logger.info(f"Dataset root: {DATASET_ROOT}")
-    logger.info(f"Seed: {RANDOM_SEED} | epochs: {EPOCHS} | batch size: {BATCH_SIZE}")
+    logger.info(
+        f"Seed: {RANDOM_SEED} | strict determinism: {STRICT_DETERMINISM} | "
+        f"workers: {NUM_WORKERS} | epochs: {EPOCHS} | batch size: {BATCH_SIZE}"
+    )
     logger.info(
         "Checkpoint policy: last.pth is saved every epoch; best.pth is selected "
         "by validation mIoU"
@@ -187,6 +194,10 @@ def train_pipeline(model_name, conduct_val=False):
         "model_name": model_name,
         "seed": RANDOM_SEED,
         "dataset_root": DATASET_ROOT,
+        "mapping_manifest": os.path.abspath(mapping_manifest)
+        if os.path.isfile(mapping_manifest)
+        else None,
+        "mapping_manifest_sha256": file_sha256(mapping_manifest),
         "staging_output_dir": os.path.abspath(EXPERIMENT_DIR),
         "final_output_dir": os.path.abspath(FINAL_EXPERIMENT_DIR)
         if FINALIZE_RESULTS
@@ -195,6 +206,7 @@ def train_pipeline(model_name, conduct_val=False):
         "device": str(device),
         "epochs": EPOCHS,
         "batch_size": BATCH_SIZE,
+        "num_workers": NUM_WORKERS,
         "learning_rate": LR,
         "weight_decay": WEIGHT_DECAY,
         "validation_enabled": bool(conduct_val),
@@ -203,6 +215,9 @@ def train_pipeline(model_name, conduct_val=False):
         "checkpoint_files": ["checkpoints/best.pth", "checkpoints/last.pth"],
         "log_file": os.path.abspath(log_file),
         "tensorboard_dir": os.path.abspath(TB_DIR),
+        "reproducibility": reproducibility,
+        "runtime": runtime_metadata(),
+        "repository": repository_metadata(os.path.dirname(__file__)),
     }
     write_json(os.path.join(EXPERIMENT_DIR, "run_config.json"), run_config)
 
@@ -229,7 +244,7 @@ def train_pipeline(model_name, conduct_val=False):
             train_dataset,
             batch_size=BATCH_SIZE,
             shuffle=True,
-            num_workers=4,
+            num_workers=NUM_WORKERS,
             pin_memory=True,
             drop_last=True,
             worker_init_fn=seed_worker,
@@ -240,7 +255,7 @@ def train_pipeline(model_name, conduct_val=False):
                 val_dataset,
                 batch_size=BATCH_SIZE,
                 shuffle=False,
-                num_workers=4,
+                num_workers=NUM_WORKERS,
                 worker_init_fn=seed_worker,
                 generator=gv,
             )

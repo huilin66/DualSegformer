@@ -59,6 +59,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--weight-decay", type=float, default=5e-4)
     parser.add_argument("--val-interval", type=int, default=1)
     parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=int(os.environ.get("TRAIN_NUM_WORKERS", "4")),
+    )
+    parser.add_argument(
+        "--strict-determinism",
+        action=argparse.BooleanOptionalAction,
+        default=os.environ.get("TRAIN_STRICT_DETERMINISM", "1").lower()
+        not in {"0", "false", "no", "off"},
+        help="Raise on unsupported nondeterministic operators when enabled.",
+    )
+    parser.add_argument(
         "--conduct-val",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -94,6 +106,8 @@ def configure_environment(args: argparse.Namespace) -> None:
     os.environ["TRAIN_LR"] = str(args.lr)
     os.environ["TRAIN_WEIGHT_DECAY"] = str(args.weight_decay)
     os.environ["TRAIN_VAL_INTERVAL"] = str(args.val_interval)
+    os.environ["TRAIN_NUM_WORKERS"] = str(args.num_workers)
+    os.environ["TRAIN_STRICT_DETERMINISM"] = "1" if args.strict_determinism else "0"
     if args.batch_size > 0:
         os.environ["TRAIN_BATCH_SIZE"] = str(args.batch_size)
     else:
@@ -117,6 +131,8 @@ def main() -> None:
     print(f"seed: {args.seed}")
     print(f"device: {args.device}")
     print(f"epochs: {args.epochs}")
+    print(f"num_workers: {args.num_workers}")
+    print(f"strict_determinism: {args.strict_determinism}")
     print(f"validation: {args.conduct_val}")
     legacy_train.train_pipeline(args.model_name, conduct_val=args.conduct_val)
 

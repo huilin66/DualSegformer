@@ -19,6 +19,8 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${REPO_ROOT}"
 
 STAGES="${STAGES:-baselines prototypes ablation}"
+STRICT_DETERMINISM="${STRICT_DETERMINISM:-1}"
+export TRAIN_STRICT_DETERMINISM="${STRICT_DETERMINISM}"
 
 has_stage() {
   requested="$1"

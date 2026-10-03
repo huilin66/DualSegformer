@@ -23,6 +23,7 @@ PATIENCE="${PATIENCE:-25}"
 INPUT_SIZE="${INPUT_SIZE:-128}"
 BATCH_SIZE="${BATCH_SIZE:-16}"
 NUM_WORKERS="${NUM_WORKERS:-4}"
+STRICT_DETERMINISM="${STRICT_DETERMINISM:-1}"
 DEVICE="${DEVICE:-auto}"
 PRETRAIN="${PRETRAIN:-true}"
 MIXED_PRECISION="${MIXED_PRECISION:-true}"
@@ -36,6 +37,9 @@ run_baseline() {
   fusion="$4"
   for seed in ${SEEDS}; do
     echo "=== ${experiment}, seed ${seed} ==="
+    PYTHONHASHSEED="${seed}" \
+    CUBLAS_WORKSPACE_CONFIG=":4096:8" \
+    TRAIN_STRICT_DETERMINISM="${STRICT_DETERMINISM}" \
     "${PYTHON_BIN}" train_skg.py \
       --output-dir "${OUTPUT_DIR}" \
       --stage baselines \
@@ -53,6 +57,7 @@ run_baseline() {
       --num-workers "${NUM_WORKERS}" \
       --device "${DEVICE}" \
       --mixed-precision "${MIXED_PRECISION}" \
+      --deterministic true \
       --normalization none \
       --max-train-samples "${MAX_TRAIN_SAMPLES}" \
       --max-val-samples "${MAX_VAL_SAMPLES}"

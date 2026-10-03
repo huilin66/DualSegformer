@@ -19,6 +19,9 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Direct invocation fallback; launchers set this before starting Python.
+os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+
 import numpy as np
 import tifffile
 import torch
@@ -32,6 +35,12 @@ from knowledge.prototype_prior import PrototypePrior
 from knowledge.spectral_descriptor import load_descriptor_config
 from losses import CrossEntropyDiceLoss, KnowledgeConsistencyLoss
 from networks.skg_dual_segformer import SKGDualSegFormer, SingleStreamSegFormer
+from reproducibility import (
+    env_bool,
+    runtime_metadata,
+    seed_worker as shared_seed_worker,
+    set_global_seed,
+)
 
 
 def str2bool(value: str | bool) -> bool:
@@ -235,16 +244,12 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def set_seed(seed: int, deterministic: bool) -> None:
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.benchmark = not deterministic
-    torch.backends.cudnn.deterministic = deterministic
-    if deterministic:
-        torch.use_deterministic_algorithms(True, warn_only=True)
+def set_seed(seed: int, deterministic: bool) -> dict:
+    return set_global_seed(
+        seed,
+        deterministic=deterministic,
+        strict=env_bool("TRAIN_STRICT_DETERMINISM", False),
+    )
 
 
 def choose_device(spec: str) -> torch.device:
@@ -254,9 +259,7 @@ def choose_device(spec: str) -> torch.device:
 
 
 def worker_seed(_: int) -> None:
-    seed = torch.initial_seed() % (2**32)
-    np.random.seed(seed)
-    random.seed(seed)
+    return shared_seed_worker(_)
 
 
 def compute_metrics(confusion: np.ndarray) -> dict[str, float]:
@@ -496,9 +499,16 @@ def run(config: TrainConfig) -> Path:
 
     run_dir = create_run_dir(config)
     logger = setup_logger(run_dir)
-    set_seed(config.seed, config.deterministic)
+    reproducibility = set_seed(config.seed, config.deterministic)
     device = choose_device(config.device)
-    logger.info("Device: %s | train samples: %d | val samples: %d", device, len(train_dataset), len(val_dataset))
+    logger.info(
+        "Device: %s | train samples: %d | val samples: %d | "
+        "strict determinism: %s",
+        device,
+        len(train_dataset),
+        len(val_dataset),
+        reproducibility["strict_determinism"],
+    )
     logger.info("Protocol: %s → %s for selection; %s is not loaded.", config.train_split, config.val_split, config.test_split)
 
     with open(run_dir / "config.yaml", "w", encoding="utf-8") as handle:
@@ -512,6 +522,10 @@ def run(config: TrainConfig) -> Path:
     with open(run_dir / "environment.txt", "w", encoding="utf-8") as handle:
         handle.write(f"python={sys.version}\nplatform={platform.platform()}\ntorch={torch.__version__}\n")
         handle.write(f"git_dirty={bool(git_value(['status', '--short']))}\n")
+    with open(run_dir / "reproducibility.json", "w", encoding="utf-8") as handle:
+        json.dump(reproducibility, handle, indent=2, ensure_ascii=False)
+    with open(run_dir / "runtime.json", "w", encoding="utf-8") as handle:
+        json.dump(runtime_metadata(), handle, indent=2, ensure_ascii=False)
     if prototype_metadata:
         with open(run_dir / "prototype_metadata.json", "w", encoding="utf-8") as handle:
             json.dump(prototype_metadata, handle, indent=2, ensure_ascii=False)

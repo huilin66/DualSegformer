@@ -11,17 +11,24 @@ cd "${REPO_ROOT}"
 
 PYTHON_BIN="${PYTHON_BIN:-python}"
 DATA_ROOT="${MARS_DATA_ROOT:-${DATA_ROOT:-/scrinvme/huilin/bdd/cp_data/mmlsv2_mapped_mars_ls}}"
-DEVICE="${DEVICE:-${TRAIN_DEVICE:-cuda:1}}"
+DEVICE="${DEVICE:-${TRAIN_DEVICE:-cuda:0}}"
 SEEDS="${SEEDS:-42}"
 EPOCHS="${EPOCHS:-100}"
 BATCH_SIZE="${BATCH_SIZE:-${TRAIN_BATCH_SIZE:-0}}"
 LR="${LR:-0.0001}"
 WEIGHT_DECAY="${WEIGHT_DECAY:-0.0005}"
 VAL_INTERVAL="${VAL_INTERVAL:-1}"
+NUM_WORKERS="${NUM_WORKERS:-${TRAIN_NUM_WORKERS:-4}}"
+STRICT_DETERMINISM="${STRICT_DETERMINISM:-1}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-outputs_experiments/reproduction}"
 FINAL_OUTPUT_ROOT="${FINAL_OUTPUT_ROOT:-${DATA_ROOT}/outputs}"
 GROUP_NAME="${GROUP_NAME:-competition_reproduction}"
 MODEL_NAMES="${MODEL_NAMES:-dual_segformer_convnextsmall_chv1_add}"
+
+case "${STRICT_DETERMINISM}" in
+  1|true|TRUE|yes|YES|on|ON) STRICT_FLAG="--strict-determinism" ;;
+  *) STRICT_FLAG="--no-strict-determinism" ;;
+esac
 
 if [ ! -d "${DATA_ROOT}/train/images" ] || [ ! -d "${DATA_ROOT}/val/masks" ]; then
   echo "Dataset is incomplete: ${DATA_ROOT}" >&2
@@ -41,6 +48,10 @@ for model_name in ${MODEL_NAMES}; do
   for seed in ${SEEDS}; do
     run_output="${OUTPUT_ROOT}/${model_name}/seed${seed}"
     echo "=== ${GROUP_NAME}: ${model_name}, seed ${seed} ==="
+    PYTHONHASHSEED="${seed}" \
+    CUBLAS_WORKSPACE_CONFIG=":4096:8" \
+    TRAIN_STRICT_DETERMINISM="${STRICT_DETERMINISM}" \
+    TRAIN_NUM_WORKERS="${NUM_WORKERS}" \
     "${PYTHON_BIN}" scripts/train_competition_reproduction.py \
       --model-name "${model_name}" \
       --data-root "${DATA_ROOT}" \
@@ -52,7 +63,9 @@ for model_name in ${MODEL_NAMES}; do
       --batch-size "${BATCH_SIZE}" \
       --lr "${LR}" \
       --weight-decay "${WEIGHT_DECAY}" \
-      --val-interval "${VAL_INTERVAL}"
+      --val-interval "${VAL_INTERVAL}" \
+      --num-workers "${NUM_WORKERS}" \
+      "${STRICT_FLAG}"
   done
 done
 

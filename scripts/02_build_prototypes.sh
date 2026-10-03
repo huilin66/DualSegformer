@@ -22,6 +22,7 @@ DISTANCE="${DISTANCE:-cosine}"
 NORMALIZATION="${NORMALIZATION:-none}"
 DESCRIPTOR_CONFIG="${DESCRIPTOR_CONFIG:-configs/descriptors/default.json}"
 DESCRIPTOR_NAME="${DESCRIPTOR_NAME:-default}"
+STRICT_DETERMINISM="${STRICT_DETERMINISM:-1}"
 ARTIFACT_ROOT="${ARTIFACT_ROOT:-artifacts/prototypes}"
 MAX_PIXELS_PER_IMAGE="${MAX_PIXELS_PER_IMAGE:-2048}"
 MAX_SAMPLES="${MAX_SAMPLES:-0}"
@@ -30,6 +31,9 @@ for seed in ${SEEDS}; do
   for k in ${K_VALUES}; do
     output="${ARTIFACT_ROOT}/${DESCRIPTOR_NAME}/k${k}/seed${seed}/prototypes.npz"
     echo "=== train-only prototypes: descriptor=${DESCRIPTOR_NAME}, K=${k}, seed=${seed} ==="
+    PYTHONHASHSEED="${seed}" \
+    CUBLAS_WORKSPACE_CONFIG=":4096:8" \
+    TRAIN_STRICT_DETERMINISM="${STRICT_DETERMINISM}" \
     "${PYTHON_BIN}" -m knowledge.build_prototypes \
       --descriptor-config "${DESCRIPTOR_CONFIG}" \
       --prototype-k "${k}" \

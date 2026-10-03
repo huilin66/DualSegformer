@@ -10,6 +10,8 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 
+os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+
 from env_utils import get_env_value
 
 
@@ -303,30 +305,19 @@ def save_run_metadata(cfg, run_dir):
 
 
 def set_seed(seed, deterministic=True):
-    import numpy as np
-    import torch
+    from reproducibility import env_bool, set_global_seed
 
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    if deterministic:
-        os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.benchmark = not deterministic
-    torch.backends.cudnn.deterministic = deterministic
-    if deterministic:
-        torch.use_deterministic_algorithms(True, warn_only=True)
+    return set_global_seed(
+        seed,
+        deterministic=deterministic,
+        strict=env_bool("TRAIN_STRICT_DETERMINISM", False),
+    )
 
 
 def seed_worker(worker_id):
-    import numpy as np
-    import torch
+    from reproducibility import seed_worker as shared_seed_worker
 
-    worker_seed = torch.initial_seed() % 2**32
-    np.random.seed(worker_seed)
-    random.seed(worker_seed)
+    return shared_seed_worker(worker_id)
 
 
 class FileListMarsDataset:
@@ -998,9 +989,15 @@ def run_experiment(cfg):
     from torch.utils.data import DataLoader, Subset
     from tqdm import tqdm
 
-    set_seed(cfg.seed, cfg.deterministic)
+    reproducibility = set_seed(cfg.seed, cfg.deterministic)
     run_dir = make_run_dir(cfg)
     save_run_metadata(cfg, run_dir)
+    from reproducibility import runtime_metadata
+
+    with open(run_dir / "reproducibility.json", "w", encoding="utf-8") as f:
+        json.dump(reproducibility, f, indent=2, ensure_ascii=False)
+    with open(run_dir / "runtime.json", "w", encoding="utf-8") as f:
+        json.dump(runtime_metadata(), f, indent=2, ensure_ascii=False)
     logger = setup_logger(run_dir)
     logger.info("Run directory: %s", run_dir)
 
