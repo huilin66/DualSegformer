@@ -222,6 +222,10 @@ def main() -> None:
             total_tn += tn
             batch_metrics.append(metrics_from_counts(tp, fp, fn, tn))
 
+    batch_average_metrics = mean_metric_dict(batch_metrics)
+    global_pixel_metrics = metrics_from_counts(
+        total_tp, total_fp, total_fn, total_tn
+    )
     evaluation = {
         "status": "completed",
         "evaluation_type": "public_test_metrics",
@@ -234,13 +238,15 @@ def main() -> None:
         "device": str(device),
         "num_samples": len(dataset),
         "num_batches": len(batch_metrics),
-        "metrics": mean_metric_dict(batch_metrics),
-        "global_pixel_metrics": metrics_from_counts(
-            total_tp, total_fp, total_fn, total_tn
-        ),
+        # Keep the canonical metrics field aligned with train.py validation:
+        # all test pixels are pooled before calculating mIoU.
+        "metrics": global_pixel_metrics,
+        "global_pixel_metrics": global_pixel_metrics,
+        "batch_average_metrics": batch_average_metrics,
         "aggregation": {
-            "metrics": "mean of per-batch metrics, matching train.py validation",
+            "metrics": "global pixel metrics; primary paper aggregation",
             "global_pixel_metrics": "metrics from all test pixels pooled together",
+            "batch_average_metrics": "mean of per-batch metrics; auxiliary compatibility report",
         },
     }
 
