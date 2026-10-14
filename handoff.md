@@ -51,8 +51,8 @@ GPU：NVIDIA A100 80GB PCIe，使用 GPU 0
 远端原始数据：/data/huilin/scrinvme/huilin/bdd/cp_data/mmlsv2
 远端映射数据：/data/huilin/scrinvme/huilin/bdd/cp_data/mmlsv2_mapped_mars_ls
 训练入口：/data/huilin/projects/DualSegformer/train.py
-当前远端仓库：main，commit b186bbd；工作区干净
-本地论文实验分支：ablation，commit 4f9db67；尚未同步到 A100
+当前远端仓库：ablation，commit fc21b43；工作区干净
+本地论文实验分支：ablation，commit fc21b43；已同步到 A100
 ~~~
 
 远端数据规模：
@@ -438,7 +438,7 @@ FLOPs 或推理时间
 
 - [x] 确认 A100-1、代码路径和共享数据路径
 - [x] 核对旧服务器结果已保存在共享数据盘
-- [ ] 将本地 `ablation` 分支（commit `4f9db67`）同步到 A100 代码目录
+- [x] 将本地 `ablation` 分支（commit `fc21b43`）同步到 A100 代码目录
 - [x] 完成 MMLSv2 到比赛格式的映射
 - [x] 导出映射数据并完成数量检查
 - [x] 修改远端 train.py 使用环境变量
