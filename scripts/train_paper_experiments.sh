@@ -15,6 +15,7 @@ DEVICE=${DEVICE:-cuda:0}
 GROUP=${GROUP:-core}
 SEEDS=${SEEDS:-"41 42 43"}
 NUM_WORKERS=${NUM_WORKERS:-4}
+BATCH_SIZE=${BATCH_SIZE:-}
 STRICT_DETERMINISM=${STRICT_DETERMINISM:-1}
 DRY_RUN=${DRY_RUN:-0}
 SKIP_MODEL_INIT=${SKIP_MODEL_INIT:-0}
@@ -37,7 +38,7 @@ export TRAIN_STRICT_DETERMINISM="${STRICT_VALUE}"
 export PYTHONUNBUFFERED=1
 
 echo "[paper] config=${CONFIG} group=${GROUP}"
-echo "[paper] data=${DATA_ROOT} device=${DEVICE} seeds=${SEEDS}"
+echo "[paper] data=${DATA_ROOT} device=${DEVICE} seeds=${SEEDS} batch=${BATCH_SIZE:-protocol-default}"
 
 for seed in ${SEEDS}; do
   echo "=== paper group=${GROUP}, seed=${seed} ==="
@@ -48,6 +49,9 @@ for seed in ${SEEDS}; do
     --data-root "${DATA_ROOT}" \
     --device "${DEVICE}" \
     --num-workers "${NUM_WORKERS}"
+  if [ -n "${BATCH_SIZE}" ]; then
+    set -- "$@" --batch-size "${BATCH_SIZE}"
+  fi
   if [ "${DRY_RUN}" = "1" ]; then
     set -- "$@" --dry-run
   fi

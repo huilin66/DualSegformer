@@ -1,6 +1,6 @@
 # PMDFNet: Physically Motivated Dual-Stream Fusion for Multimodal Landslide Segmentation
 
-本仓库当前以 **PMDFNet** 在 **converted MMLSv2** 上的论文级训练与复现实验为主线。比赛提交、数据转换、冻结测试评估和历史结果分析均已移到 `tools/`，不参与论文训练主流程。
+本仓库当前以 **PMDFNet** 在 **converted MMLSv2** 上的论文级训练与复现实验为主线。比赛提交、旧版训练、SKG 分支和历史分析代码已归档到 `archive/legacy/`，不参与当前论文训练主流程。
 
 项目显示名和仓库目录均为 PMDFNet；Python 模块和历史结果中保留的 `DualSegFormer`/`dual_segformer_*` 仅作为兼容标识，不改变旧 checkpoint 和复现入口。
 
@@ -9,29 +9,23 @@
 ```text
 PMDFNet/
 ├── train_ablation.py                 # 配置驱动的论文实验训练器
-├── train_skg.py                      # SKG-PMDFNet 训练器
-├── train.py                          # 历史比赛训练入口
-├── exp_train.sh                      # 历史实验和论文实验总入口
+├── exp_train.sh                      # 当前论文实验总入口
 ├── scripts/                          # 训练启动脚本
 │   ├── train_paper_experiments.sh    # 论文协议入口
 │   ├── train_paper_experiments.py
-│   ├── train_competition_reproduction.py
-│   └── ...                           # legacy/SKG 训练与 smoke train
+│   └── ...                           # 当前论文启动辅助脚本
 ├── configs/                          # 训练配置和描述子配置
 ├── networks/                         # 模型结构
 ├── losses/                           # 损失函数
-├── knowledge/                        # SKG 训练所需的知识模块
 ├── dataset.py                        # 数据集定义
 ├── augmentations.py                  # 训练增强
 ├── reproducibility.py                # 随机种子和确定性设置
-├── doc/                              # 实验计划和交接文档
-└── tools/                            # 与训练主流程无关的工具
-    ├── data/                         # 数据准备和 MMLSv2 映射
-    ├── evaluation/                   # 冻结 checkpoint 的 val/test 评估
-    ├── analysis/                     # 结果汇总、分析和日志解析
-    ├── validation/                   # 数据冒烟检查
-    ├── knowledge/                    # train-only prototype 构建入口
-    └── submission/                   # 历史比赛提交生成代码，不用于论文
+├── doc/                              # 当前实验计划
+├── tools/                            # 当前数据、评估和验证工具
+│   ├── data/                         # MMLSv2 映射
+│   ├── evaluation/                   # 冻结 checkpoint 的 val/test 评估
+│   └── validation/                   # 数据与显存冒烟检查
+└── archive/legacy/                   # 旧版训练、SKG、提交和分析代码
 ```
 
 ## 安装
@@ -49,7 +43,7 @@ pip install -r requirements.txt
 ```bash
 cd /data/huilin/projects/PMDFNet
 DATA_ROOT=/data/huilin/scrinvme/huilin/bdd/cp_data/mmlsv2_mapped_mars_ls \
-  GROUP=core sh scripts/train_paper_experiments.sh
+  GROUP=core BATCH_SIZE=32 sh scripts/train_paper_experiments.sh
 ```
 
 关键消融：
@@ -98,7 +92,7 @@ DATA_ROOT=/path/to/mmlsv2_mapped_mars_ls \
   bash tools/evaluation/evaluate_reproduction_test.sh
 ```
 
-结果汇总工具位于 `tools/analysis/`。`tools/submission/` 下的脚本只保留作历史比赛提交参考，不属于当前论文实验协议。
+历史结果汇总和比赛提交工具位于 `archive/legacy/tools/`，不属于当前论文实验协议。
 
 
 

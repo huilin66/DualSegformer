@@ -4,7 +4,7 @@ The legacy MarsSegDataset intentionally returns only ``(image, image_name)``
 for ``split="test"`` because the original competition test labels were
 hidden.  The mapped MMLSv2 release contains public test masks, so this script
 loads those masks explicitly while keeping the same Mars test normalization
-and metric definition used by train.py.
+and metric definition used by train_ablation.py.
 """
 
 from __future__ import annotations
@@ -238,7 +238,7 @@ def main() -> None:
         "device": str(device),
         "num_samples": len(dataset),
         "num_batches": len(batch_metrics),
-        # Keep the canonical metrics field aligned with train.py validation:
+        # Keep the canonical metrics field aligned with train_ablation.py validation:
         # all test pixels are pooled before calculating mIoU.
         "metrics": global_pixel_metrics,
         "global_pixel_metrics": global_pixel_metrics,

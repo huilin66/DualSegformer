@@ -1,27 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Experiment entry point. The default is intentionally conservative:
-# reproduce the historical competition model first. Other groups are started
-# explicitly so that a new-model run cannot be mixed with an unfrozen baseline.
-#
-# Usage:
-#   bash exp_train.sh                         # competition reproduction
-#   bash exp_train.sh reproduce               # same as the default
-#   bash exp_train.sh fusion                  # legacy fusion ablations
-#   bash exp_train.sh capacity                # backbone capacity comparison
-#   bash exp_train.sh new_model               # SKG/new-model pipeline
-#   bash exp_train.sh paper_core              # paper M1-M5, seeds 41/42/43
-#   bash exp_train.sh paper_ablations         # paper key ablations
-#   bash exp_train.sh paper_all               # paper core plus key ablations
-#   bash exp_train.sh vram_smoke              # bounded one-step VRAM probe
-#   bash exp_train.sh test                    # evaluate a selected best checkpoint on public test
-#   bash exp_train.sh all                     # run groups in the planned order
-#
-# Common overrides:
-#   MARS_DATA_ROOT=/path/to/mapped DATA_ROOT=/path/to/mapped bash exp_train.sh reproduce
-#   SEEDS="42 123 7" bash exp_train.sh capacity
-#   PYTHON_BIN=/path/to/python DEVICE=cuda:1 bash exp_train.sh reproduce
+# Current PMDFNet paper-workflow entry point. Historical competition, SKG,
+# submission, and analysis entry points are preserved under archive/legacy/.
 
 SCRIPT_DIR="$(CDPATH= cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="${SCRIPT_DIR}"
@@ -29,85 +10,53 @@ cd "${REPO_ROOT}"
 
 usage() {
   cat <<'EOF'
-Usage: bash exp_train.sh [reproduce|fusion|capacity|new_model|paper_core|paper_ablations|paper_all|vram_smoke|test|smoke|all]
+Usage: bash exp_train.sh [paper_core|paper_ablations|paper_all|vram_smoke|data_smoke|test]
 
 Groups:
-  reproduce  Reproduce the historical competition configuration.
-  fusion     Compare legacy add/cat/attention/MoE fusion variants.
-  capacity   Compare Tiny/Small/Base/Large backbones.
-  new_model  Run the SKG/new-model pipeline after the baseline is frozen.
-  paper_core Run M1-M5 with seeds 41/42/43 under the frozen paper protocol.
-  paper_ablations
-             Run A1/A2/A5/B2/B3/C2 with seeds 41/42/43.
-  paper_all  Run paper_core followed by paper_ablations.
-  vram_smoke Run a bounded synthetic one-step peak-memory probe for all paper configurations.
-  test       Evaluate a selected checkpoint on the labeled public test split.
-  smoke      Run the repository's data and training smoke tests.
-  all        Run groups in the order reproduce -> fusion -> capacity -> new_model.
+  paper_core       Run M1-M5 with seeds 41/42/43.
+  paper_ablations  Run A1/A2/A5/B2/B3/C2 with seeds 41/42/43.
+  paper_all        Run paper_core followed by paper_ablations.
+  vram_smoke       Run the bounded synthetic VRAM probe.
+  data_smoke       Check the configured dataset and read one sample.
+  test             Evaluate a selected checkpoint on the labeled public test split.
 
-The default group is reproduce. Configure paths, seeds, device, and epochs
-through environment variables documented in the individual group scripts.
+Common overrides are read by the paper entry point, for example:
+  DATA_ROOT=/path/to/mapped BATCH_SIZE=32 bash exp_train.sh paper_core
+  SEEDS="41 42 43" DEVICE=cuda:0 bash exp_train.sh paper_core
 EOF
 }
 
-run_group() {
-  group_script="$1"
-  echo ""
-  echo "######## ${group_script} ########"
-  bash "${REPO_ROOT}/scripts/${group_script}"
+run_paper() {
+  group="$1"
+  echo "######## paper group=${group} ########"
+  GROUP="${group}" bash "${REPO_ROOT}/scripts/train_paper_experiments.sh"
 }
 
-GROUP="${1:-reproduce}"
+GROUP="${1:-paper_core}"
 if [ "$#" -gt 1 ]; then
   usage >&2
   exit 2
 fi
 
 case "${GROUP}" in
-  reproduce|baseline)
-    run_group "exp01_reproduce_competition.sh"
-    ;;
-  fusion|ablation)
-    run_group "exp02_legacy_fusion_ablation.sh"
-    ;;
-  capacity|backbone)
-    run_group "exp03_legacy_capacity.sh"
-    ;;
-  new_model|skg)
-    run_group "exp04_skg_new_model.sh"
-    ;;
   paper_core)
-    GROUP=core bash "${REPO_ROOT}/scripts/train_paper_experiments.sh"
+    run_paper core
     ;;
   paper_ablations)
-    echo ""
-    echo "######## train_paper_experiments.sh (ablations) ########"
-    GROUP=ablations bash "${REPO_ROOT}/scripts/train_paper_experiments.sh"
+    run_paper ablations
     ;;
-  paper_all)
-    GROUP=core bash "${REPO_ROOT}/scripts/train_paper_experiments.sh"
-    echo ""
-    echo "######## train_paper_experiments.sh (ablations) ########"
-    GROUP=ablations bash "${REPO_ROOT}/scripts/train_paper_experiments.sh"
+  paper_all|all)
+    run_paper core
+    run_paper ablations
     ;;
   vram_smoke|memory_smoke)
     sh "${REPO_ROOT}/tools/validation/smoke_test_vram.sh"
     ;;
-  test|evaluate)
-    echo ""
-    echo "######## tools/evaluation/evaluate_reproduction_test.sh ########"
-    bash "${REPO_ROOT}/tools/evaluation/evaluate_reproduction_test.sh"
-    ;;
-  smoke)
-    echo "######## smoke tests ########"
+  data_smoke|smoke)
     sh "${REPO_ROOT}/tools/validation/smoke_test_data.sh"
-    bash "${REPO_ROOT}/scripts/smoke_test_train.sh"
     ;;
-  all)
-    run_group "exp01_reproduce_competition.sh"
-    run_group "exp02_legacy_fusion_ablation.sh"
-    run_group "exp03_legacy_capacity.sh"
-    run_group "exp04_skg_new_model.sh"
+  test|evaluate)
+    bash "${REPO_ROOT}/tools/evaluation/evaluate_reproduction_test.sh"
     ;;
   help|-h|--help)
     usage
@@ -120,5 +69,4 @@ case "${GROUP}" in
     ;;
 esac
 
-echo ""
 echo "Experiment group completed: ${GROUP}"
