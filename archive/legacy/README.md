@@ -6,6 +6,7 @@ and old-checkpoint investigation, but it is not part of the current PMDFNet
 paper protocol.
 
 - `root/`: historical training entry points and SKG modules.
+- `configs/`: superseded ablation and descriptor configurations.
 - `scripts/`: old competition, fusion, capacity, and SKG launchers.
 - `tools/`: historical result analysis, submission generation, and SKG tools.
 - `docs/`: superseded handoff and experiment-plan documents.
