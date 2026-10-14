@@ -151,8 +151,13 @@ def mean_metric_dict(metric_dicts: list[dict[str, float]]) -> dict[str, float]:
 
 def load_checkpoint(model: torch.nn.Module, checkpoint_path: Path, device: torch.device) -> None:
     checkpoint = torch.load(str(checkpoint_path), map_location=device)
-    if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
-        checkpoint = checkpoint["state_dict"]
+    if isinstance(checkpoint, dict):
+        if "state_dict" in checkpoint:
+            checkpoint = checkpoint["state_dict"]
+        elif "model_state_dict" in checkpoint:
+            checkpoint = checkpoint["model_state_dict"]
+        elif "model" in checkpoint and isinstance(checkpoint["model"], dict):
+            checkpoint = checkpoint["model"]
     if not isinstance(checkpoint, dict):
         raise TypeError(f"Unsupported checkpoint format: {type(checkpoint)}")
     try:
