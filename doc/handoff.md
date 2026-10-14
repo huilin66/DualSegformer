@@ -33,7 +33,7 @@
 映射脚本：
 
 ~~~text
-scripts/map_mmlsv2_to_mars.py
+tools/data/map_mmlsv2_to_mars.py
 ~~~
 
 映射报告：

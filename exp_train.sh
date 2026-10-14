@@ -89,11 +89,13 @@ case "${GROUP}" in
     GROUP=ablations bash "${REPO_ROOT}/scripts/train_paper_experiments.sh"
     ;;
   test|evaluate)
-    run_group "evaluate_reproduction_test.sh"
+    echo ""
+    echo "######## tools/evaluation/evaluate_reproduction_test.sh ########"
+    bash "${REPO_ROOT}/tools/evaluation/evaluate_reproduction_test.sh"
     ;;
   smoke)
     echo "######## smoke tests ########"
-    bash "${REPO_ROOT}/scripts/smoke_test_data.sh"
+    sh "${REPO_ROOT}/tools/validation/smoke_test_data.sh"
     bash "${REPO_ROOT}/scripts/smoke_test_train.sh"
     ;;
   all)

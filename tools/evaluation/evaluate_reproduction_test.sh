@@ -5,7 +5,7 @@ set -euo pipefail
 # masks. This script never trains and requires CHECKPOINT explicitly.
 
 SCRIPT_DIR="$(CDPATH= cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
 PYTHON_BIN="${PYTHON_BIN:-python}"
@@ -29,7 +29,7 @@ echo "[test] checkpoint=${CHECKPOINT}"
 echo "[test] device=${DEVICE}"
 
 args=(
-  scripts/evaluate_test_metrics.py
+  tools/evaluation/evaluate_test_metrics.py
   --data-root "${DATA_ROOT}"
   --checkpoint "${CHECKPOINT}"
   --model-name "${MODEL_NAME}"

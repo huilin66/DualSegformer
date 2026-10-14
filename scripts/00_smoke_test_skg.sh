@@ -38,7 +38,7 @@ sh scripts/01_train_baselines.sh
 # make class sampling reliable while still keeping this check lightweight.
 ARTIFACT_ROOT="${ARTIFACT_ROOT}" DESCRIPTOR_NAME=smoke K_VALUES=2 SEEDS="${SEED}" \
 MAX_SAMPLES=8 MAX_PIXELS_PER_IMAGE=128 NORMALIZATION=none \
-sh scripts/02_build_prototypes.sh
+sh tools/knowledge/build_prototypes.sh
 
 OUTPUT_DIR="${SMOKE_ROOT}/ablation" ARTIFACT_ROOT="${ARTIFACT_ROOT}" DESCRIPTOR_NAME=smoke \
 PROTOTYPE_K=2 SEEDS="${SEED}" EPOCHS=1 PATIENCE=0 PRETRAIN=false MIXED_PRECISION=false \
@@ -48,7 +48,7 @@ sh scripts/04_train_knowledge_ablation.sh
 
 # Exercise the frozen-checkpoint evaluation entry point against val only.
 CHECKPOINT="${SMOKE_ROOT}/baselines/B4_dual_concat/${SEED}/checkpoints/best.pth"
-"${PYTHON_BIN}" eval_skg.py \
+"${PYTHON_BIN}" tools/evaluation/eval_skg.py \
   --checkpoint "${CHECKPOINT}" \
   --split val \
   --device "${DEVICE}" \

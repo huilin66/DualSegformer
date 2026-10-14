@@ -47,7 +47,7 @@ fi
 if has_stage "prototypes"; then
   echo ""
   echo "######## Stage 2: train-only prototype construction ########"
-  sh scripts/02_build_prototypes.sh
+  sh tools/knowledge/build_prototypes.sh
 fi
 
 if has_stage "ablation"; then
@@ -58,4 +58,4 @@ fi
 
 echo ""
 echo "SKG training pipeline completed for stages: ${STAGES}"
-echo "Test was intentionally not evaluated. Freeze selected val checkpoints first, then run scripts/08_eval_final_test.sh manually."
+echo "Test was intentionally not evaluated. Freeze selected val checkpoints first, then run tools/evaluation/08_eval_final_test.sh manually."

@@ -5,10 +5,10 @@ set -eu
 # split other than train in the Python implementation.
 #
 # Example:
-#   DATA_ROOT=/path/to/mmlsv2 SEEDS="42 123 7" K_VALUES="1 2 4 8" sh scripts/02_build_prototypes.sh
+#   DATA_ROOT=/path/to/mmlsv2 SEEDS="42 123 7" K_VALUES="1 2 4 8" sh tools/knowledge/build_prototypes.sh
 
 SCRIPT_DIR="$(CDPATH= cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
 PYTHON_BIN="${PYTHON_BIN:-python}"

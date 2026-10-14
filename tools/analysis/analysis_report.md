@@ -91,11 +91,11 @@ DualSegformer 的核心是：
 
 整理版有三个推理脚本：
 
-- `generate_submission.py`：单模型、无 TTA，`argmax` 保存 tif。
-- `generate_submission_aug.py`：单模型 TTA，多尺度/flip/rotation，默认仍偏硬编码。
-- `generate_submission_voting.py`：多模型 TTA 后保存概率与 mask，再 hard vote / soft vote。soft voting 阈值固定 `>0.5`。
+- `tools/submission/generate_submission.py`：单模型、无 TTA，`argmax` 保存 tif。
+- `tools/submission/generate_submission_aug.py`：单模型 TTA，多尺度/flip/rotation，默认仍偏硬编码。
+- `tools/submission/generate_submission_voting.py`：多模型 TTA 后保存概率与 mask，再 hard vote / soft vote。soft voting 阈值固定 `>0.5`。
 
-`generate_submission_voting.py` 中，若 `ana=True` 默认数据根为 phase 1 dataset，并用 `MarsSegDatasetInferV0` 读取 val；若用于真实 test 需要把 `ana=False` 并切换到 `Mars_LSc_2025_test_data_2nd_phase_updateB2`。这是线上/本地混用时容易出错的位置。
+`tools/submission/generate_submission_voting.py` 中，若 `ana=True` 默认数据根为 phase 1 dataset，并用 `MarsSegDatasetInferV0` 读取 val；若用于真实 test 需要把 `ana=False` 并切换到 `Mars_LSc_2025_test_data_2nd_phase_updateB2`。这是线上/本地混用时容易出错的位置。
 
 ## 3. DualSegformer 与 M3LSNet 差异
 
@@ -116,7 +116,7 @@ DualSegformer 的核心是：
 - 原始 `train.py` 的验证代码被整段注释掉；整理版通过 `conduct_val=True` 恢复验证和 `best.pth` 保存。
 - 原始训练数据使用 `MartianLandslideDatasetV2`；整理版对应改名为 `MarsSegDataset`，逻辑基本等价。
 - 原始 `dataset.py` 有大量 `MartianLandslideDatasetV21` 到 `V29`、`V3/V4/3Band`，主要试验 test/isolated test 的统计对齐与通道策略；整理版只保留 `InferV0/V1/V2` 三个推理变体。
-- 原始 `generate_submission_aug.py` 中写死真实 phase 2 test 根目录；整理版 `generate_submission_voting.py` 默认回到了 phase 1 根目录，真实提交路径被注释。这是整理版与比赛过程的关键不一致。
+- 原始 `tools/submission/generate_submission_aug.py` 中写死真实 phase 2 test 根目录；整理版 `tools/submission/generate_submission_voting.py` 默认回到了 phase 1 根目录，真实提交路径被注释。这是整理版与比赛过程的关键不一致。
 - 原始仓库中 `data_merge.py` 明确写了“复制 val 到 new_train”，说明比赛过程可能存在 train+val 合并训练策略；整理版主训练入口没有保留这个开关。
 
 ### 3.3 可能是最终提交关键改动
@@ -146,7 +146,7 @@ DualSegformer 的核心是：
 - `Mars_LSc_2025_dataset_1st_phase_updateB2`
 - `Mars_LSc_2025_test_data_2nd_phase_updateB2`
 
-`data_prepare.py` 对 test 的处理只组织 images；`data_merge.py` 也对 `test/masks` 做可选处理。这说明比赛期间 test 很可能是“图像公开、label 隐藏”。
+`tools/data/data_prepare.py` 对 test 的处理只组织 images；`data_merge.py` 也对 `test/masks` 做可选处理。这说明比赛期间 test 很可能是“图像公开、label 隐藏”。
 
 ### 4.2 公开网页证据
 

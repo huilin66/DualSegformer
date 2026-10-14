@@ -840,7 +840,7 @@ git_commit
 单独测试脚本：
 
 ```text
-eval_skg.py
+tools/evaluation/eval_skg.py
 ```
 
 建议参数：
@@ -878,13 +878,13 @@ scripts/
 ```sh
 sh scripts/00_verify_dataset.sh
 sh scripts/01_train_baselines.sh
-sh scripts/02_build_prototypes.sh
+sh tools/knowledge/build_prototypes.sh
 sh scripts/03_eval_prototype_prior.sh
 sh scripts/04_train_knowledge_ablation.sh
 sh scripts/05_train_control_ablation.sh
 sh scripts/06_eval_corruptions.sh
 sh scripts/07_train_multiseed.sh
-sh scripts/08_eval_final_test.sh
+sh tools/evaluation/08_eval_final_test.sh
 sh scripts/09_summarize_paper_results.sh
 ```
 
@@ -1090,10 +1090,10 @@ prototype prior 接近随机
 ```text
 DualSegformer/
 ├── train_skg.py
-├── eval_skg.py
+├── tools/evaluation/eval_skg.py
 ├── dataset.py
 ├── env_utils.py
-├── summarize_results.py
+├── tools/analysis/summarize_results.py
 ├── configs/
 │   ├── baselines/
 │   ├── skg/

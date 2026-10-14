@@ -14,7 +14,7 @@ copy contains a non-zero value; the verifier reports this explicitly.
 
 Examples (PowerShell):
 
-    python scripts/map_mmlsv2_to_mars.py `
+    python tools/data/map_mmlsv2_to_mars.py `
       --source-root Z:\\huilin\\bdd\\cp_data\\mmlsv2 `
       --output-root Z:\\huilin\\bdd\\cp_data\\mmlsv2_mapped_mars_ls `
       --reference-root Z:\\huilin\\bdd\\cp_data\\mars_seg\\Mars_LSc_2025_dataset_1st_phase_updateB2

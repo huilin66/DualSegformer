@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-# Stage 3 core SKG ablation A0-A6. Run scripts/02_build_prototypes.sh first.
+# Stage 3 core SKG ablation A0-A6. Run tools/knowledge/build_prototypes.sh first.
 # Every run uses train→val checkpoint selection and leaves test untouched.
 #
 # Example:
@@ -47,7 +47,7 @@ run_ablation() {
     if [ "${require_prototype}" = "1" ]; then
       prototype_path="${ARTIFACT_ROOT}/${DESCRIPTOR_NAME}/k${PROTOTYPE_K}/seed${seed}/prototypes.npz"
       if [ ! -f "${prototype_path}" ]; then
-        echo "Missing ${prototype_path}. Run scripts/02_build_prototypes.sh with matching SEEDS/K first." >&2
+        echo "Missing ${prototype_path}. Run tools/knowledge/build_prototypes.sh with matching SEEDS/K first." >&2
         exit 1
       fi
     fi

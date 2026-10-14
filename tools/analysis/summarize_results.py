@@ -2,9 +2,9 @@
 """Summarize training results from output directories into formatted tables.
 
 Usage:
-    python summarize_results.py outputs_jstar/ablation outputs_jstar/comparison
-    python summarize_results.py outputs_experiments/chv3 --sort-by best_miou
-    python summarize_results.py outputs_jstar --recursive --output results_table.csv
+    python tools/analysis/summarize_results.py outputs_jstar/ablation outputs_jstar/comparison
+    python tools/analysis/summarize_results.py outputs_experiments/chv3 --sort-by best_miou
+    python tools/analysis/summarize_results.py outputs_jstar --recursive --output results_table.csv
 """
 
 import argparse

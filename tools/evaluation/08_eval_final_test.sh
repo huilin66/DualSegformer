@@ -5,7 +5,7 @@ set -eu
 # cannot alter model selection. Set CHECKPOINT explicitly.
 
 SCRIPT_DIR="$(CDPATH= cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
 : "${CHECKPOINT:?Set CHECKPOINT to a selected best.pth file}"
@@ -14,7 +14,7 @@ if [ -n "${DATA_ROOT:-}" ]; then
   export MMLSV2_DATA_ROOT="${DATA_ROOT}"
 fi
 
-"${PYTHON_BIN}" eval_skg.py \
+"${PYTHON_BIN}" tools/evaluation/eval_skg.py \
   --checkpoint "${CHECKPOINT}" \
   --split "${SPLIT:-test}" \
   --device "${DEVICE:-auto}" \
