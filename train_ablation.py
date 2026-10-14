@@ -689,11 +689,17 @@ def build_loss(cfg):
 
     name = cfg.loss.lower()
     if name == "ce":
-        return nn.CrossEntropyLoss(ignore_index=cfg.ignore_index)
+        from losses.utils_loss import DeterministicCrossEntropyLoss
+
+        return DeterministicCrossEntropyLoss(ignore_index=cfg.ignore_index)
     if name == "combined":
         from losses import CombinedLoss
 
-        return CombinedLoss(ce_weight=0.5, dice_weight=0.5)
+        return CombinedLoss(
+            ce_weight=0.5,
+            dice_weight=0.5,
+            ignore_index=cfg.ignore_index,
+        )
     if name == "dice":
         from losses.unetformer_loss import DiceLoss
 

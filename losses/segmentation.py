@@ -6,6 +6,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from .utils_loss import deterministic_cross_entropy
+
 
 class CrossEntropyDiceLoss(nn.Module):
     """Equal-weight CE + foreground Dice, with optional ignored labels."""
@@ -17,7 +19,7 @@ class CrossEntropyDiceLoss(nn.Module):
         self.dice_weight = float(dice_weight)
 
     def forward(self, logits: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        ce = F.cross_entropy(logits, target, ignore_index=self.ignore_index)
+        ce = deterministic_cross_entropy(logits, target, ignore_index=self.ignore_index)
         valid = target != self.ignore_index
         target_fg = (target == 1).to(logits.dtype) * valid.to(logits.dtype)
         probability_fg = F.softmax(logits, dim=1)[:, 1] * valid.to(logits.dtype)
