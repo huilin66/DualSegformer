@@ -16,6 +16,8 @@ GROUP=${GROUP:-core}
 SEEDS=${SEEDS:-"41 42 43"}
 NUM_WORKERS=${NUM_WORKERS:-4}
 BATCH_SIZE=${BATCH_SIZE:-}
+EXPERIMENTS=${EXPERIMENTS:-}
+FINALIZE_RESULTS=${FINALIZE_RESULTS:-}
 STRICT_DETERMINISM=${STRICT_DETERMINISM:-1}
 DRY_RUN=${DRY_RUN:-0}
 SKIP_MODEL_INIT=${SKIP_MODEL_INIT:-0}
@@ -38,7 +40,7 @@ export TRAIN_STRICT_DETERMINISM="${STRICT_VALUE}"
 export PYTHONUNBUFFERED=1
 
 echo "[paper] config=${CONFIG} group=${GROUP}"
-echo "[paper] data=${DATA_ROOT} device=${DEVICE} seeds=${SEEDS} batch=${BATCH_SIZE:-protocol-default}"
+echo "[paper] data=${DATA_ROOT} device=${DEVICE} seeds=${SEEDS} batch=${BATCH_SIZE:-protocol-default} experiments=${EXPERIMENTS:-group-default} finalize=${FINALIZE_RESULTS:-config-default}"
 
 for seed in ${SEEDS}; do
   echo "=== paper group=${GROUP}, seed=${seed} ==="
@@ -51,6 +53,12 @@ for seed in ${SEEDS}; do
     --num-workers "${NUM_WORKERS}"
   if [ -n "${BATCH_SIZE}" ]; then
     set -- "$@" --batch-size "${BATCH_SIZE}"
+  fi
+  if [ -n "${EXPERIMENTS}" ]; then
+    set -- "$@" --experiments "${EXPERIMENTS}"
+  fi
+  if [ -n "${FINALIZE_RESULTS}" ]; then
+    set -- "$@" --finalize-results "${FINALIZE_RESULTS}"
   fi
   if [ "${DRY_RUN}" = "1" ]; then
     set -- "$@" --dry-run

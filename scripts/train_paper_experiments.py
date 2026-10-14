@@ -35,6 +35,17 @@ def parse_args(argv=None):
     parser.add_argument("--epochs", type=int, default=None, help="Optional epoch override for smoke/debug runs.")
     parser.add_argument("--batch-size", type=int, default=None, help="Optional batch-size override.")
     parser.add_argument("--num-workers", type=int, default=None, help="Optional DataLoader worker override.")
+    parser.add_argument(
+        "--experiments",
+        default="",
+        help="Optional comma-separated experiment IDs to run, e.g. M3,M4,M5.",
+    )
+    parser.add_argument(
+        "--finalize-results",
+        type=train_ablation.str2bool,
+        default=None,
+        help="Override whether to copy each completed run to the dataset outputs directory.",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Build/check data and exit before training.")
     parser.add_argument(
         "--skip-model-init",
@@ -80,6 +91,8 @@ def build_config(protocol, experiment, args):
         merged["batch_size"] = args.batch_size
     if args.num_workers is not None:
         merged["num_workers"] = args.num_workers
+    if args.finalize_results is not None:
+        merged["finalize_results"] = args.finalize_results
     if args.dry_run:
         merged["dry_run"] = True
     if args.skip_model_init:
@@ -101,18 +114,40 @@ def main(argv=None):
     protocol_path = Path(args.config).resolve()
     protocol = load_protocol(protocol_path)
 
-    selected = [
+    group_selected = [
         experiment
         for experiment in protocol["experiments"]
         if experiment_in_group(experiment, args.group)
     ]
-    if not selected:
+    if not group_selected:
         raise ValueError(f"No experiments found for group: {args.group}")
+
+    requested_ids = {
+        item.strip()
+        for item in args.experiments.split(",")
+        if item.strip()
+    }
+    if requested_ids:
+        selected = [
+            experiment
+            for experiment in group_selected
+            if experiment.get("id", "") in requested_ids
+        ]
+        selected_ids = {experiment.get("id", "") for experiment in selected}
+        missing_ids = sorted(requested_ids - selected_ids)
+        if missing_ids:
+            raise ValueError(
+                "Requested experiment IDs are unavailable in the selected group: "
+                + ", ".join(missing_ids)
+            )
+    else:
+        selected = group_selected
 
     os.environ.setdefault("PYTHONUNBUFFERED", "1")
     print(
         f"Paper protocol={protocol_path} group={args.group} seed={args.seed} "
-        f"experiments={len(selected)}"
+        f"experiments={len(selected)} "
+        f"ids={','.join(experiment.get('id', '?') for experiment in selected)}"
     )
 
     run_dirs = []
