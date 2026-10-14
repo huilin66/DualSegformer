@@ -1,7 +1,7 @@
 # PMDFNet 火星滑坡分割复盘分析报告
 
 生成日期：2026-07-06  
-分析仓库：`E:\repository\DualSegformer`，对照仓库：`E:\repository\M3LSNet`
+分析仓库：`E:\repository\PMDFNet`，对照仓库：`E:\repository\M3LSNet`
 
 ## 1. 本地文件与任务入口
 

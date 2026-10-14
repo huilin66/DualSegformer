@@ -1,6 +1,6 @@
 # PMDFNet：Physically Motivated Dual-Stream Fusion for Multimodal Landslide Segmentation
 
-项目论文名称已统一为 PMDFNet。历史代码键 `dual_segformer_*`、已有结果目录和远端仓库路径暂保留，以保证旧实验可追溯、可复现。
+项目论文名称和项目目录已统一为 PMDFNet。历史代码键 `dual_segformer_*`、已有结果目录仍保留，以保证旧实验可追溯、可复现。
 
 更新时间：2026-10-14
 当前阶段：已完成一次 Small 单模型基线链路验证和公开 test 评估；当前正在迁移到 A100，论文级固定协议和多 seed 正式实验尚未启动
@@ -26,7 +26,7 @@
 ### 2.1 本地仓库
 
 ~~~text
-仓库：E:\repository\DualSegformer
+仓库：E:\repository\PMDFNet
 本地比赛原始数据：Z:\huilin\bdd\cp_data\mars_seg
 本地 MMLSv2：Z:\huilin\bdd\cp_data\mmlsv2
 本地映射数据：Z:\huilin\bdd\cp_data\mmlsv2_mapped_mars_ls
@@ -49,10 +49,10 @@ Z:\huilin\bdd\cp_data\mmlsv2_mapped_mars_ls\mapping_manifest.json
 ~~~text
 SSH Host：A100-1
 GPU：NVIDIA A100 80GB PCIe，使用 GPU 0
-代码：/data/huilin/projects/DualSegformer
+代码：/data/huilin/projects/PMDFNet
 远端原始数据：/data/huilin/scrinvme/huilin/bdd/cp_data/mmlsv2
 远端映射数据：/data/huilin/scrinvme/huilin/bdd/cp_data/mmlsv2_mapped_mars_ls
-训练入口：/data/huilin/projects/DualSegformer/train.py
+训练入口：/data/huilin/projects/PMDFNet/train.py
 当前远端仓库：ablation，commit fc21b43；工作区干净
 本地论文实验分支：ablation，commit fc21b43；已同步到 A100
 ~~~
@@ -240,7 +240,7 @@ MMLSv2 converted to the original Mars-LS channel ordering and radiometric repres
 建议命令模板：
 
 ~~~bash
-cd /data/huilin/projects/DualSegformer
+cd /data/huilin/projects/PMDFNet
 export MARS_DATA_ROOT=/data/huilin/scrinvme/huilin/bdd/cp_data/mmlsv2_mapped_mars_ls
 python3 -m py_compile train.py scripts/train_competition_reproduction.py
 ~~~

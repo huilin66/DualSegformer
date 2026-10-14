@@ -2,7 +2,7 @@
 
 本仓库当前以 **PMDFNet** 在 **converted MMLSv2** 上的论文级训练与复现实验为主线。比赛提交、数据转换、冻结测试评估和历史结果分析均已移到 `tools/`，不参与论文训练主流程。
 
-项目显示名为 PMDFNet；仓库目录、Python 模块和历史结果中保留的 `DualSegFormer`/`dual_segformer_*` 仅作为兼容标识，不改变旧 checkpoint 和复现入口。
+项目显示名和仓库目录均为 PMDFNet；Python 模块和历史结果中保留的 `DualSegFormer`/`dual_segformer_*` 仅作为兼容标识，不改变旧 checkpoint 和复现入口。
 
 ## 目录结构
 
@@ -47,7 +47,7 @@ pip install -r requirements.txt
 正式协议位于 `configs/mmlsv2_paper_protocol.json`，包含 M1–M5 和关键消融，固定 seed 为 `41 42 43`。
 
 ```bash
-cd /data/huilin/projects/DualSegformer
+cd /data/huilin/projects/PMDFNet
 DATA_ROOT=/data/huilin/scrinvme/huilin/bdd/cp_data/mmlsv2_mapped_mars_ls \
   GROUP=core sh scripts/train_paper_experiments.sh
 ```

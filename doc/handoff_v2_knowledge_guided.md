@@ -3,7 +3,7 @@
 基础双流模型的论文统一名称为 PMDFNet；`dual_segformer_*` 等旧实现键仅作为兼容标识保留。
 
 更新时间：2026-07-24  
-仓库：`/localnvme/project/DualSegformer`  
+仓库：`/localnvme/project/PMDFNet`
 数据集：仅使用 `MMLSv2（dataB）`  
 文档状态：新版实验主线，替代旧版以 `dataA/dataB + 融合搜索` 为核心的 handoff
 
