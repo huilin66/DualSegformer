@@ -14,6 +14,7 @@ set -euo pipefail
 #   bash exp_train.sh paper_core              # paper M1-M5, seeds 41/42/43
 #   bash exp_train.sh paper_ablations         # paper key ablations
 #   bash exp_train.sh paper_all               # paper core plus key ablations
+#   bash exp_train.sh vram_smoke              # bounded one-step VRAM probe
 #   bash exp_train.sh test                    # evaluate a selected best checkpoint on public test
 #   bash exp_train.sh all                     # run groups in the planned order
 #
@@ -28,7 +29,7 @@ cd "${REPO_ROOT}"
 
 usage() {
   cat <<'EOF'
-Usage: bash exp_train.sh [reproduce|fusion|capacity|new_model|paper_core|paper_ablations|paper_all|test|smoke|all]
+Usage: bash exp_train.sh [reproduce|fusion|capacity|new_model|paper_core|paper_ablations|paper_all|vram_smoke|test|smoke|all]
 
 Groups:
   reproduce  Reproduce the historical competition configuration.
@@ -39,6 +40,7 @@ Groups:
   paper_ablations
              Run A1/A2/A5/B2/B3/C2 with seeds 41/42/43.
   paper_all  Run paper_core followed by paper_ablations.
+  vram_smoke Run a bounded synthetic one-step peak-memory probe for all paper configurations.
   test       Evaluate a selected checkpoint on the labeled public test split.
   smoke      Run the repository's data and training smoke tests.
   all        Run groups in the order reproduce -> fusion -> capacity -> new_model.
@@ -87,6 +89,9 @@ case "${GROUP}" in
     echo ""
     echo "######## train_paper_experiments.sh (ablations) ########"
     GROUP=ablations bash "${REPO_ROOT}/scripts/train_paper_experiments.sh"
+    ;;
+  vram_smoke|memory_smoke)
+    sh "${REPO_ROOT}/tools/validation/smoke_test_vram.sh"
     ;;
   test|evaluate)
     echo ""

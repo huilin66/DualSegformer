@@ -8,7 +8,7 @@ the paper training entry point.
   must only be used after model and checkpoint selection are frozen.
 - `analysis/`: result tables, historical log parsing, visualization and legacy
   analysis notes.
-- `validation/`: data-only smoke checks.
+- `validation/`: data-only smoke checks and bounded synthetic VRAM probes.
 - `knowledge/`: train-only prototype artifact construction used by the SKG
   training pipeline; it does not optimize a segmentation model.
 - `submission/`: historical competition inference and zip generation. These

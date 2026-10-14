@@ -67,6 +67,15 @@ bash exp_train.sh paper_ablations
 bash exp_train.sh paper_all
 ```
 
+启动显存 smoke test（默认 batch=8、PyTorch allocator 上限 38GB、总安全上限 40GB）：
+
+```bash
+bash exp_train.sh vram_smoke
+```
+
+结果写入 `outputs_experiments/smoke/vram/vram_smoke_results.csv` 和
+`vram_smoke_results.json`；该测试使用随机输入，不读取数据集、不训练和不保存 checkpoint。
+
 ## 数据映射
 
 映射脚本位于 `tools/data/map_mmlsv2_to_mars.py`。它将 MMLSv2 的通道顺序转换为旧比赛格式，保留原始数据并写出新的 mapped 数据集。
