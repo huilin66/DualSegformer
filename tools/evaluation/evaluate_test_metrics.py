@@ -37,7 +37,16 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--data-root", required=True)
     parser.add_argument("--checkpoint", required=True)
-    parser.add_argument("--model-name", required=True)
+    parser.add_argument(
+        "--model-name",
+        default="",
+        help="Legacy networks.get_model identifier; use --run-config for paper runs.",
+    )
+    parser.add_argument(
+        "--run-config",
+        default="",
+        help="Training run config.json used to reconstruct the exact trained model.",
+    )
     parser.add_argument("--output-dir", default="")
     parser.add_argument(
         "--staging-output-dir",
@@ -156,6 +165,27 @@ def load_checkpoint(model: torch.nn.Module, checkpoint_path: Path, device: torch
         model.load_state_dict(stripped)
 
 
+def build_evaluation_model(args: argparse.Namespace) -> tuple[torch.nn.Module, str, str]:
+    """Build the exact training model when a run config is supplied."""
+    if args.run_config:
+        import train_ablation
+
+        config_path = Path(args.run_config).expanduser().resolve()
+        with config_path.open("r", encoding="utf-8") as f:
+            payload = json.load(f)
+        merged = dict(train_ablation.DEFAULTS)
+        merged.update(payload)
+        config = train_ablation.RunConfig(
+            **{key: merged[key] for key in train_ablation.DEFAULTS}
+        )
+        model = train_ablation.build_model(config)
+        return model, config.experiment_name, str(config_path)
+
+    if not args.model_name:
+        raise ValueError("Provide either --run-config or --model-name")
+    return get_model(args.model_name, in_channels=7, num_classes=2), args.model_name, ""
+
+
 def write_json(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
@@ -200,7 +230,8 @@ def main() -> None:
         pin_memory=True,
     )
 
-    model = get_model(args.model_name, in_channels=7, num_classes=2).to(device)
+    model, resolved_model_name, run_config_path = build_evaluation_model(args)
+    model = model.to(device)
     load_checkpoint(model, checkpoint_path, device)
     model.eval()
 
@@ -232,7 +263,8 @@ def main() -> None:
         "split": "test",
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "dataset_root": str(data_root),
-        "model_name": args.model_name,
+        "model_name": resolved_model_name,
+        "run_config": run_config_path,
         "checkpoint": str(checkpoint_path),
         "checkpoint_selection": "best validation mIoU checkpoint",
         "device": str(device),
