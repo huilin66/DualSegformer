@@ -1,7 +1,7 @@
 # DualSegFormer 实验交接与工作计划
 
-更新时间：2026-10-04
-当前阶段：已完成一次单模型基线链路验证；论文级固定协议和多 seed 正式实验尚未启动
+更新时间：2026-10-14
+当前阶段：已完成一次 Small 单模型基线链路验证和公开 test 评估；当前正在迁移到 A100，论文级固定协议和多 seed 正式实验尚未启动
 核心顺序：**先复现比赛结果，再冻结基线，最后进行新模型尝试**
 
 ## 1. 工作目标
@@ -45,10 +45,14 @@ Z:\huilin\bdd\cp_data\mmlsv2_mapped_mars_ls\mapping_manifest.json
 ### 2.2 远端训练环境
 
 ~~~text
-SSH Host：rtx6000-2
-代码：/localnvme/project/DualSegformer
-远端映射数据：/scrinvme/huilin/bdd/cp_data/mmlsv2_mapped_mars_ls
-训练入口：/localnvme/project/DualSegformer/train.py
+SSH Host：A100-1
+GPU：NVIDIA A100 80GB PCIe，使用 GPU 0
+代码：/data/huilin/projects/DualSegformer
+远端原始数据：/data/huilin/scrinvme/huilin/bdd/cp_data/mmlsv2
+远端映射数据：/data/huilin/scrinvme/huilin/bdd/cp_data/mmlsv2_mapped_mars_ls
+训练入口：/data/huilin/projects/DualSegformer/train.py
+当前远端仓库：main，commit b186bbd；工作区干净
+本地论文实验分支：ablation，commit 4f9db67；尚未同步到 A100
 ~~~
 
 远端数据规模：
@@ -62,7 +66,7 @@ test： 133 images / 133 masks
 远端 train.py 已修改为读取环境变量：
 
 ~~~bash
-export MARS_DATA_ROOT=/scrinvme/huilin/bdd/cp_data/mmlsv2_mapped_mars_ls
+export MARS_DATA_ROOT=/data/huilin/scrinvme/huilin/bdd/cp_data/mmlsv2_mapped_mars_ls
 ~~~
 
 优先级为：
@@ -71,13 +75,9 @@ export MARS_DATA_ROOT=/scrinvme/huilin/bdd/cp_data/mmlsv2_mapped_mars_ls
 MARS_DATA_ROOT > DATA_ROOT > 原始比赛数据默认路径
 ~~~
 
-训练启动时会在日志中打印最终使用的数据根目录。原文件备份为：
+训练启动时会在日志中打印最终使用的数据根目录。当前 A100 的 Python 环境尚待确认，不能继续沿用旧服务器的环境路径。
 
-~~~text
-/localnvme/project/DualSegformer/train.py.bak
-~~~
-
-当前正式训练环境为：
+旧服务器的正式训练环境记录为：
 
 ~~~text
 /home/23039356r/.conda/envs/M3LSNet/bin/python
@@ -85,7 +85,7 @@ Python 3.10.19 / PyTorch 2.5.1+cu121
 CUDA_VISIBLE_DEVICES=0（物理 GPU 0）
 ~~~
 
-该环境已通过数据读取、模型初始化和训练链路检查。论文正式运行时固定记录 Python 环境、Git commit、GPU、数据 manifest 和 seed。
+该环境只作为旧服务器历史记录。A100 正式运行前需要重新记录 Python、PyTorch、CUDA、Git commit、GPU、数据 manifest 和 seed。
 
 ### 2.3 Shell 实验入口
 
@@ -126,7 +126,45 @@ outputs_experiments/reproduction/<model>/seed42/<run_id>/
 
 模型权重仍只保留 `best.pth` 和 `last.pth` 两类。`best.pth` 的选择依据是验证集 `mIoU`，不是 test 指标；若关闭验证或验证集为空，则不会生成 `best.pth`。文本日志记录 epoch 级训练和验证信息，batch 级 loss 记录在 TensorBoard 中。
 
-### 2.5 论文级可复现性设置
+### 2.5 已完成结果清点（2026-10-14）
+
+旧服务器 `rtx6000-2` 已回收，但最终运行目录保存在共享数据盘，A100 上仍可访问：
+
+~~~text
+/data/huilin/scrinvme/huilin/bdd/cp_data/mmlsv2_mapped_mars_ls/outputs/
+~~~
+
+已找到两个 Small seed=42 运行目录。最新目录为：
+
+~~~text
+dual_segformer_convnextsmall_chv1_add_seed42_20261004_005845/
+~~~
+
+该目录完整保留：
+
+~~~text
+checkpoints/best.pth
+checkpoints/last.pth
+logs/train_log_20261004_005845.txt
+run_config.json
+results.json
+test_metrics.json
+tensorboard/
+~~~
+
+最新运行结果（global pixel aggregation）：
+
+~~~text
+best epoch：70
+val mIoU：0.84491
+public converted test mIoU：0.84443
+public converted test batch-average mIoU（辅助记录）：0.84937
+~~~
+
+该结果是公开转换后的 MMLSv2 test 评估，不是官方隐藏 leaderboard 结果。旧目录
+`dual_segformer_convnextsmall_chv1_add_seed42_20261003_232622/` 也保留，但正式汇总优先使用最新目录。
+
+### 2.6 论文级可复现性设置
 
 本轮已将各训练入口的 seed 逻辑统一到 `reproducibility.py`：
 
@@ -200,8 +238,8 @@ MMLSv2 converted to the original Mars-LS channel ordering and radiometric repres
 建议命令模板：
 
 ~~~bash
-cd /localnvme/project/DualSegformer
-export MARS_DATA_ROOT=/scrinvme/huilin/bdd/cp_data/mmlsv2_mapped_mars_ls
+cd /data/huilin/projects/DualSegformer
+export MARS_DATA_ROOT=/data/huilin/scrinvme/huilin/bdd/cp_data/mmlsv2_mapped_mars_ls
 python3 -m py_compile train.py scripts/train_competition_reproduction.py
 ~~~
 
@@ -398,6 +436,9 @@ FLOPs 或推理时间
 
 ### 阶段 A：复现比赛结果
 
+- [x] 确认 A100-1、代码路径和共享数据路径
+- [x] 核对旧服务器结果已保存在共享数据盘
+- [ ] 将本地 `ablation` 分支（commit `4f9db67`）同步到 A100 代码目录
 - [x] 完成 MMLSv2 到比赛格式的映射
 - [x] 导出映射数据并完成数量检查
 - [x] 修改远端 train.py 使用环境变量
@@ -406,7 +447,7 @@ FLOPs 或推理时间
 - [ ] 激活远端正确 Conda/虚拟环境
 - [ ] 完成单 batch 数据和 GPU smoke test
 - [ ] 复现 Tiny chv1_add
-- [ ] 复现 Small chv1_add
+- [x] 复现 Small chv1_add（旧服务器 seed=42；A100 clean repeat 待完成）
 - [ ] 复现 Base/Large chv1_add
 - [ ] 固定复现 baseline checkpoint
 - [ ] 整理 train -> val 结果表
