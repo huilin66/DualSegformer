@@ -1,4 +1,4 @@
-"""Explicit, train-derived spectral knowledge components for SKG-DualSegFormer."""
+"""Explicit, train-derived spectral knowledge components for SKG-PMDFNet."""
 
 from .input_normalization import ChannelNormalizer, compute_channel_normalizer
 from .prototype_bank import PrototypeBank, load_prototype_artifact

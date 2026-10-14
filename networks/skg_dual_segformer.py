@@ -1,4 +1,4 @@
-"""SKG-DualSegFormer: explicit spectral knowledge-guided two-stream segmentation."""
+"""SKG-PMDFNet: explicit spectral knowledge-guided two-stream segmentation."""
 
 from __future__ import annotations
 
@@ -82,7 +82,7 @@ class SKGDualSegFormer(nn.Module):
         try:
             import segmentation_models_pytorch as smp
         except ImportError as error:
-            raise ImportError("SKG-DualSegFormer requires segmentation_models_pytorch.") from error
+            raise ImportError("SKG-PMDFNet requires segmentation_models_pytorch.") from error
 
         self.channels1 = _parse_channels(channels1)
         self.channels2 = _parse_channels(channels2)

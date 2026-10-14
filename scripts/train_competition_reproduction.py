@@ -1,4 +1,4 @@
-"""Run one legacy DualSegFormer model for competition reproduction.
+"""Run one legacy PMDFNet model for competition reproduction.
 
 This wrapper deliberately calls the existing train_pipeline once instead of
 executing train.py's historical multi-model loop.  It configures the data
@@ -29,7 +29,7 @@ def default_data_root() -> str:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run one legacy DualSegFormer model with a reproducible configuration."
+        description="Run one legacy PMDFNet model with a reproducible configuration."
     )
     parser.add_argument(
         "--model-name",

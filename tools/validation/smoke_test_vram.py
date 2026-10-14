@@ -190,7 +190,9 @@ def run_worker(cfg: train_ablation.RunConfig, args) -> dict:
             }
         )
 
-        if cfg.arch.lower().startswith("dual_"):
+        if cfg.arch.lower() in {"dual_segformer", "pmdfnet"} or cfg.arch.lower().startswith(
+            ("dual_", "pmdfnet_")
+        ):
             input_channels = cfg.in_channels
         elif cfg.model_name and cfg.model_name.lower() not in {"auto", "custom"}:
             input_channels = cfg.in_channels

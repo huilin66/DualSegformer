@@ -110,15 +110,15 @@ run_exp "cmp_03_upernet_convnext_tiny" "upernet_convnexttiny" 32
 run_exp "cmp_04_segformer_mit_b2" "segformer_mitb2" 32
 run_exp "cmp_05_segformer_convnext_tiny" "segformer_convnexttiny" 32
 run_exp "cmp_06_segformer_convnext_small" "segformer_convnextsmall" 16
-run_exp "cmp_07_dualsegformer_convnext_tiny" "dual_segformer_convnexttiny_chv1_add" 16
-run_exp "cmp_08_dualsegformer_convnext_small" "dual_segformer_convnextsmall_chv1_add" 16
+run_exp "cmp_07_pmdfnet_convnext_tiny" "dual_segformer_convnexttiny_chv1_add" 16
+run_exp "cmp_08_pmdfnet_convnext_small" "dual_segformer_convnextsmall_chv1_add" 16
 
 if [ "${RUN_HEAVY}" = "1" ]; then
-  run_exp "cmp_09_dualsegformer_convnext_base" "dual_segformer_convnextbase_chv1_add" 4
-  run_exp "cmp_10_dualsegformer_convnext_large" "dual_segformer_convnextlarge_chv1_add" 2
+  run_exp "cmp_09_pmdfnet_convnext_base" "dual_segformer_convnextbase_chv1_add" 4
+  run_exp "cmp_10_pmdfnet_convnext_large" "dual_segformer_convnextlarge_chv1_add" 2
 else
   echo
-  echo "Skipping base/large DualSegFormer because RUN_HEAVY=${RUN_HEAVY}."
+  echo "Skipping base/large PMDFNet because RUN_HEAVY=${RUN_HEAVY}."
 fi
 
 echo

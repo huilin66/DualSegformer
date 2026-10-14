@@ -1,4 +1,6 @@
-# SKG-DualSegFormer 实验交接文档
+# SKG-PMDFNet：PMDFNet 的知识引导扩展实验交接文档
+
+基础双流模型的论文统一名称为 PMDFNet；`dual_segformer_*` 等旧实现键仅作为兼容标识保留。
 
 更新时间：2026-07-24  
 仓库：`/localnvme/project/DualSegformer`  
@@ -25,7 +27,7 @@
 暂定方法名称：
 
 ```text
-SKG-DualSegFormer
+SKG-PMDFNet
 Spectral Knowledge-Guided Dual-Stream Network
 for Martian Landslide Segmentation
 ```
@@ -146,7 +148,7 @@ train_ablation.py
 当前 dataB 历史最佳参考配置：
 
 ```text
-DualSegFormer-Tiny
+PMDFNet-Tiny
 channels1 = 0,1,2,3
 channels2 = 4,5,6
 fusion = concat
@@ -460,8 +462,8 @@ scripts/verify_data_protocol.sh
 |---|---|---|
 | B1 | 单流 7 通道 SegFormer | 早期融合基础线 |
 | B2 | 单流 7 通道 ConvNeXt + SegFormer decoder | 与双流编码器体系一致 |
-| B3 | DualSegFormer-add | 旧论文结构 |
-| B4 | DualSegFormer-concat | 当前 dataB 参考最强基础线 |
+| B3 | PMDFNet-add | 旧论文结构 |
+| B4 | PMDFNet-concat | 当前 dataB 参考最强基础线 |
 | B5 | 参数匹配单流模型 | 排除双流参数翻倍因素 |
 | B6 | 普通 attention fusion | 与知识融合进行公平比较 |
 
@@ -594,7 +596,7 @@ outputs_skg/ablation/ablation_summary.csv
 ```text
 B4 Dual-concat
 B6 ordinary attention
-A6 full SKG-DualSegFormer
+A6 full SKG-PMDFNet
 ```
 
 测试过程中不重新训练，直接在冻结 test checkpoint 上施加退化。
@@ -941,7 +943,7 @@ Method | mean ± std | 95% CI | p-value
 必须生成：
 
 ```text
-Fig. 1  SKG-DualSegFormer 总体架构
+Fig. 1  SKG-PMDFNet 总体架构
 Fig. 2  7 个波段定义和双流划分
 Fig. 3  滑坡/背景光谱统计和 prototype 分布
 Fig. 4  prototype prior map 与 uncertainty map
@@ -1088,7 +1090,7 @@ prototype prior 接近随机
 ## 15. 推荐目录结构
 
 ```text
-DualSegformer/
+PMDFNet/
 ├── train_skg.py
 ├── tools/evaluation/eval_skg.py
 ├── dataset.py

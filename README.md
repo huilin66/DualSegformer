@@ -1,13 +1,15 @@
-# DualSegFormer for Mars Landslide Segmentation
+# PMDFNet: Physically Motivated Dual-Stream Fusion for Multimodal Landslide Segmentation
 
-本仓库当前以 **converted MMLSv2** 上的论文级训练与复现实验为主线。比赛提交、数据转换、冻结测试评估和历史结果分析均已移到 `tools/`，不参与论文训练主流程。
+本仓库当前以 **PMDFNet** 在 **converted MMLSv2** 上的论文级训练与复现实验为主线。比赛提交、数据转换、冻结测试评估和历史结果分析均已移到 `tools/`，不参与论文训练主流程。
+
+项目显示名为 PMDFNet；仓库目录、Python 模块和历史结果中保留的 `DualSegFormer`/`dual_segformer_*` 仅作为兼容标识，不改变旧 checkpoint 和复现入口。
 
 ## 目录结构
 
 ```text
-DualSegformer/
+PMDFNet/
 ├── train_ablation.py                 # 配置驱动的论文实验训练器
-├── train_skg.py                      # SKG-DualSegFormer 训练器
+├── train_skg.py                      # SKG-PMDFNet 训练器
 ├── train.py                          # 历史比赛训练入口
 ├── exp_train.sh                      # 历史实验和论文实验总入口
 ├── scripts/                          # 训练启动脚本
@@ -35,8 +37,8 @@ DualSegformer/
 ## 安装
 
 ```bash
-conda create -n dualsegformer python=3.10
-conda activate dualsegformer
+conda create -n pmdfnet python=3.10
+conda activate pmdfnet
 pip install -r requirements.txt
 ```
 
@@ -57,7 +59,7 @@ DATA_ROOT=/data/huilin/scrinvme/huilin/bdd/cp_data/mmlsv2_mapped_mars_ls \
   GROUP=ablations sh scripts/train_paper_experiments.sh
 ```
 
-运行期间的暂存结果位于 `outputs_experiments/paper_mmlsv2`；完成后复制到数据集根目录的 `outputs/`。正式配置默认只保存 `best.pth` 和 `last.pth`，其中 `best.pth` 按验证集 global mIoU 选择。
+运行期间的暂存结果位于 `outputs_experiments/pmdfnet_mmlsv2`；完成后复制到数据集根目录的 `outputs/`。正式配置默认只保存 `best.pth` 和 `last.pth`，其中 `best.pth` 按验证集 global mIoU 选择。
 
 也可以使用总入口：
 

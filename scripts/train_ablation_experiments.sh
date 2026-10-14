@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-# Train DualSegFormer ablation experiments for post-release MMLSv2 analysis.
+# Train PMDFNet ablation experiments for post-release MMLSv2 analysis.
 # This script only runs experiments; it does not generate paper text.
 #
 # Typical use:

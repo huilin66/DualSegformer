@@ -1,4 +1,4 @@
-"""Feature fusion blocks used by SKG-DualSegFormer."""
+"""Feature fusion blocks used by SKG-PMDFNet."""
 
 from __future__ import annotations
 

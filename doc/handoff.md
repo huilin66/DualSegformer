@@ -1,4 +1,6 @@
-# DualSegFormer 实验交接与工作计划
+# PMDFNet：Physically Motivated Dual-Stream Fusion for Multimodal Landslide Segmentation
+
+项目论文名称已统一为 PMDFNet。历史代码键 `dual_segformer_*`、已有结果目录和远端仓库路径暂保留，以保证旧实验可追溯、可复现。
 
 更新时间：2026-10-14
 当前阶段：已完成一次 Small 单模型基线链路验证和公开 test 评估；当前正在迁移到 A100，论文级固定协议和多 seed 正式实验尚未启动
@@ -197,7 +199,7 @@ MMLSv2 原始顺序为：
 映射数据可以用于：
 
 - 复用旧版比赛代码；
-- 训练和验证旧版 DualSegFormer；
+- 训练和验证旧版 PMDFNet；
 - 在公开 test mask 上进行冻结后的本地评估；
 - 对比旧模型和新模型。
 
@@ -359,7 +361,7 @@ last checkpoint
 
 ### B1. 新模型主线
 
-当前仓库的新模型主线为 SKG-DualSegFormer，包括：
+当前仓库的新模型主线为 SKG-PMDFNet，包括：
 
 ~~~text
 single-stream / dual-stream baseline
@@ -385,11 +387,11 @@ knowledge consistency loss
 | 编号 | 模型 | 目的 |
 |---|---|---|
 | B-01 | Single SegFormer | 单流基线 |
-| B-02 | Dual SegFormer | 双流基线 |
+| B-02 | PMDFNet | 双流基线 |
 | B-03 | Dual + descriptor | 检查显式光谱描述子 |
 | B-04 | Dual + prototype | 检查类别原型先验 |
 | B-05 | Dual + knowledge fusion | 检查知识引导融合 |
-| B-06 | Full SKG-DualSegFormer | 完整方法 |
+| B-06 | Full SKG-PMDFNet | 完整方法 |
 | B-07 | Full - descriptor | 消融 |
 | B-08 | Full - prototype | 消融 |
 | B-09 | Full - consistency | 消融 |
@@ -519,10 +521,10 @@ Origin Skill: academic-research-suite / experiment-agent
 Origin Mode: experiment planning
 Origin Date: 2026-10-04
 Verification Status: code-level reproducibility hardening completed; protocol runs pending
-Version Label: dualsegformer_paper_protocol_v1
+Version Label: pmdfnet_paper_protocol_v1
 ~~~
 
-工作假设：`SKG-DualSegFormer` 是待投稿的主方法，旧版 `DualSegFormer` 是历史/公平基线。如果最终论文主方法仍是旧版模型，只需交换主方法和 baseline 的叙述，不改变数据、seed 和评价规则。
+工作假设：`SKG-PMDFNet` 是待投稿的主方法，旧版 `PMDFNet` 是历史/公平基线。如果最终论文主方法仍是旧版模型，只需交换主方法和 baseline 的叙述，不改变数据、seed 和评价规则。
 
 ### 10.2 两条实验轨道
 
@@ -586,7 +588,7 @@ P 轨道的 train-only normalizer、descriptor 和 prototype 只能由 465 张 t
 | B2 | + train-only prototype prior | 类别原型先验是否有效 |
 | B3 | + knowledge-guided fusion | 知识引导融合是否有效 |
 | B4 | + consistency loss | 一致性约束是否带来独立增益 |
-| B5 | Full SKG-DualSegFormer | 完整方法最终效果 |
+| B5 | Full SKG-PMDFNet | 完整方法最终效果 |
 | B6 | Full - descriptor | 组件必要性 |
 | B7 | Full - prototype | 组件必要性 |
 | B8 | Full - consistency | 组件必要性 |

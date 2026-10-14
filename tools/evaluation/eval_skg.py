@@ -1,4 +1,4 @@
-"""Frozen-checkpoint evaluator for SKG-DualSegFormer.
+"""Frozen-checkpoint evaluator for SKG-PMDFNet.
 
 No optimization, checkpoint selection, or early stopping is performed here.
 Use it exactly once per fully frozen test configuration in official experiments.

@@ -1,18 +1,18 @@
-# DualSegformer 火星滑坡分割复盘分析报告
+# PMDFNet 火星滑坡分割复盘分析报告
 
 生成日期：2026-07-06  
 分析仓库：`E:\repository\DualSegformer`，对照仓库：`E:\repository\M3LSNet`
 
 ## 1. 本地文件与任务入口
 
-用户提到的 `train.csv` / `val.csv` 在 `DualSegformer` 根目录未发现；当前实际存在的是：
+用户提到的 `train.csv` / `val.csv` 在 `PMDFNet` 根目录未发现；当前实际存在的是：
 
 - `training_metrics.csv`：240 行，包含线上提交分数、实验备注、部分本地 best mIoU。
 - `val_metrics.csv`：10 行，包含后续本地验证实验，无线上分数。
 
 后续分析将 `training_metrics.csv` 视作“线上提交记录”，将 `val_metrics.csv` 视作“后续本地验证记录”。这是一个需要人工确认的文件名差异。
 
-## 2. DualSegformer 代码结构与实际调用链
+## 2. PMDFNet 代码结构与实际调用链
 
 ### 2.1 训练入口
 
@@ -64,7 +64,7 @@
 
 `networks/__init__.py::get_model()` 是模型工厂。整理版保留了大量 SMP 模型、HF OneFormer/Mask2Former/OCRNet、M3LSNet、UnetFormer，以及大量 dual wrapper 名称。
 
-DualSegformer 的核心是：
+PMDFNet 的核心是：
 
 - 两个同构 SMP Segformer 分支。
 - `chv1`：`[0,1,2,3]` 与 `[4,5,6]`。
@@ -97,7 +97,7 @@ DualSegformer 的核心是：
 
 `tools/submission/generate_submission_voting.py` 中，若 `ana=True` 默认数据根为 phase 1 dataset，并用 `MarsSegDatasetInferV0` 读取 val；若用于真实 test 需要把 `ana=False` 并切换到 `Mars_LSc_2025_test_data_2nd_phase_updateB2`。这是线上/本地混用时容易出错的位置。
 
-## 3. DualSegformer 与 M3LSNet 差异
+## 3. PMDFNet 与 M3LSNet 差异
 
 ### 3.1 原始仓库保留了大量试验痕迹
 
@@ -124,7 +124,7 @@ DualSegformer 的核心是：
 结合 `training_metrics.csv`，更可能贡献线上成绩的因素：
 
 - ConvNeXt backbone 的 SegFormer / UPerNet。
-- Dual branch `dual_segformer_*`，尤其 `dual_segformer_convnextsmall_chv1_add`。
+- PMDFNet branch（legacy key `dual_segformer_*`），尤其 `dual_segformer_convnextsmall_chv1_add`。
 - 使用 `last.pth` 而非单纯 best.pth 的若干提交。
 - TTA：flip、rotation、多尺度，尤其 `aug-last`、`aug-last-ufloss` 备注。
 - soft voting ensemble。
@@ -219,7 +219,7 @@ Pearson 看起来较高，主要来自 base/large dual 模型的线上分数很�
 `val_metrics.csv` 显示：
 
 - m3lsnet、ocrnet、unet、upernet、segformer 几个模型本地都是 0.8634，完全打平。
-- dual_segformer tiny/small/base/large 反而逐步降低：0.8515、0.8498、0.8392、0.8354。
+- PMDFNet Tiny/Small/Base/Large 反而逐步降低：0.8515、0.8498、0.8392、0.8354。
 
 但线上最佳同名模型中：
 
@@ -236,7 +236,7 @@ Pearson 看起来较高，主要来自 base/large dual 模型的线上分数很�
 - 早期 SMP/HF 模型：本地虚高，线上 0.82-0.85；Mask2Former/OneFormer 有明显崩溃提交。
 - ConvNeXt + SegFormer/UPerNet：线上显著更稳。
 - TTA/last checkpoint/UF loss：`aug-last`、`aug-last-ufloss` 备注对应较高分。
-- Dual branch：不是所有 dual 都提升；`dual_segformer_convnextsmall_chv1_add` 最强，`chv2/chv3/cat/att/moe` 需要独立消融。
+- PMDFNet branch：不是所有双流变体都提升；`dual_segformer_convnextsmall_chv1_add` 最强，`chv2/chv3/cat/att/moe` 需要独立消融。
 - 大 backbone：`dual_segformer_convnextbase/large_chv1_add` 在后续本地分数更低，线上记录也低，可能过拟合或训练/资源不足。
 - Ensemble：soft voting 后期最高约 0.7839；这是 phase 2 / isolated test 场景，低于 phase 1 单模型 0.86 是正常的分布 shift。
 

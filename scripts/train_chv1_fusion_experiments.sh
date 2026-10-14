@@ -74,7 +74,7 @@ run_exp() {
         --output-dir "${OUTPUT_DIR}" \
         --summary-csv "${SUMMARY_CSV}" \
         --model-name auto \
-        --arch dual_segformer \
+        --arch pmdfnet \
         --encoder "${encoder}" \
         --pretrain "${PRETRAIN}" \
         --channels1 "0,1,2,3" \
@@ -111,7 +111,7 @@ run_exp() {
         --output-dir "${OUTPUT_DIR}" \
         --summary-csv "${SUMMARY_CSV}" \
         --model-name auto \
-        --arch dual_segformer \
+        --arch pmdfnet \
         --encoder "${encoder}" \
         --pretrain "${PRETRAIN}" \
         --channels1 "0,1,2,3" \

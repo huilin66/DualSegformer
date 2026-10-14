@@ -97,7 +97,7 @@ def parse_channels(value):
 def build_parser(defaults=None):
     defaults = defaults or DEFAULTS
     parser = argparse.ArgumentParser(
-        description="Reproducible training entry for DualSegformer ablations."
+        description="Reproducible training entry for PMDFNet ablations."
     )
     parser.add_argument("--config", default="", help="JSON config for one experiment.")
     parser.add_argument(
@@ -634,7 +634,7 @@ def build_model(cfg):
     weights = "imagenet" if cfg.pretrain else None
 
     def plain_model(in_channels):
-        if arch.endswith("segformer") or arch == "segformer":
+        if arch.endswith("segformer") or arch in {"segformer", "pmdfnet"}:
             return smp.Segformer(
                 encoder_name=cfg.encoder,
                 encoder_weights=weights,
@@ -671,7 +671,10 @@ def build_model(cfg):
             )
         raise ValueError(f"Unsupported arch: {cfg.arch}")
 
-    if arch.startswith("dual_"):
+    # PMDFNet is the paper-facing name of the legacy dual-stream
+    # implementation.  Keep ``dual_*`` as a backward-compatible alias for
+    # historical configs and checkpoints.
+    if arch in {"dual_segformer", "pmdfnet"} or arch.startswith(("dual_", "pmdfnet_")):
         ch1 = parse_channels(cfg.channels1)
         ch2 = parse_channels(cfg.channels2)
         main_model = plain_model(len(ch1))

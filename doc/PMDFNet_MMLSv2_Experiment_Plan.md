@@ -1,14 +1,16 @@
-# DualSegFormer：MMLSv2 期刊论文实验计划
+# PMDFNet：Physically Motivated Dual-Stream Fusion for Multimodal Landslide Segmentation
+
+本文件中的 PMDFNet 是项目论文统一名称；旧版代码中的 `dual_segformer_*` 仅保留为历史兼容键。
 
 > **目标期刊**：*Remote Sensing*  
-> **核心约束**：不升级 DualSegFormer 主网络；保留双 ConvNeXt Encoder、四尺度逐元素相加（Add Fusion）和 SegFormer All-MLP Decoder。  
+> **核心约束**：不升级 PMDFNet 主网络；保留双 ConvNeXt Encoder、四尺度逐元素相加（Add Fusion）和 SegFormer All-MLP Decoder。  
 > **主数据集**：MMLSv2（以统一的 Train / Validation / Test 划分完成训练、模型选择与最终评估）。  
 > **工作目标**：在复现原始网络的基础上，通过完整基线比较、模态消融、分组消融、鲁棒性与效率评估，形成可复现、可解释的实验证据。  
 > **范围**：本文件只规划 **MMLSv2** 实验；其他数据集的扩展实验另行规划。
 
 ## 1. 需要回答的研究问题
 
-- **RQ1——性能**：DualSegFormer 是否优于具有代表性的单流语义分割模型？
+- **RQ1——性能**：PMDFNet 是否优于具有代表性的单流语义分割模型？
 - **RQ2——双流有效性**：性能提升是否来源于模态解耦，而不仅是模型参数量增加？
 - **RQ3——模态分组**：按物理含义划分输入通道，是否优于其他合理划分或非物理划分？
 - **RQ4——设计选择**：简单的 Add Fusion 与 CE + Dice 是否具备合理性？
@@ -74,7 +76,7 @@ F_i^{\mathrm{fused}} = F_i^{G} + F_i^{O}, \quad i=1,2,3,4.
 | M2 | DeepLabV3+ | ResNet50 | 全部 7 通道 | 经典强基线 | 必须 |
 | M3 | SegFormer | MiT-B2 | 全部 7 通道 | Transformer 分割基线 | 必须 |
 | M4 | ConvNeXt-Tiny + SegFormer MLP Decoder | ConvNeXt-Tiny（单流） | 全部 7 通道 | **直接单流对照** | 必须 |
-| M5 | **DualSegFormer-Tiny** | ConvNeXt-Tiny ×2（双流） | 原始 3+4 分组 | **主要方法** | 必须 |
+| M5 | **PMDFNet-Tiny** | ConvNeXt-Tiny ×2（双流） | 原始 3+4 分组 | **主要方法** | 必须 |
 | M6 | OCRNet | HRNet | 全部 7 通道 | 扩展基线 | 建议 |
 | M7 | UPerNet | ConvNeXt-Tiny | 全部 7 通道 | 扩展基线 | 建议 |
 
@@ -98,7 +100,7 @@ F_i^{\mathrm{fused}} = F_i^{G} + F_i^{O}, \quad i=1,2,3,4.
 | A1 | 单流 ConvNeXt-Tiny + MLP Decoder | RGB + Grayscale（4 通道） | 光学模态贡献 | 必须 |
 | A2 | 单流 ConvNeXt-Tiny + MLP Decoder | Thermal + Slope + DEM（3 通道） | 地形/物理模态贡献 | 必须 |
 | A3 | 单流 ConvNeXt-Tiny + MLP Decoder | 全部 7 通道 | Early Fusion 对照，**复用 M4** | 必须 |
-| A4 | 原始 DualSegFormer-Tiny | 原始 3+4 分组 | 双流对照，**复用 M5** | 必须 |
+| A4 | 原始 PMDFNet-Tiny | 原始 3+4 分组 | 双流对照，**复用 M5** | 必须 |
 | A5 | 参数量近似匹配的单流 Encoder + 同类 Decoder | 全部 7 通道 | 控制模型容量因素 | **强烈建议** |
 
 **A5 的原则**：选择接近 A4 参数规模的单流模型作为容量匹配对照，报告实际参数差异；不应仅通过增加训练轮数代替参数量控制。选择何种 Backbone 规模可在代码复现阶段据真实参数量确定。
@@ -134,7 +136,7 @@ F_i^{\mathrm{fused}} = F_i^{G} + F_i^{O}, \quad i=1,2,3,4.
 
 | ID | Fusion | 其他配置 |
 |---|---|---|
-| C1 | **Add**（逐尺度相加） | 原始 DualSegFormer，**复用 M5** |
+| C1 | **Add**（逐尺度相加） | 原始 PMDFNet，**复用 M5** |
 | C2 | Concat + 1×1 Conv | 其他网络与训练设置保持一致 |
 
 注意：C2 会增加少量融合参数。应报告新增参数与 FLOPs，不能将 C1/C2 视为严格相同计算预算的比较。无需进一步增加复杂 Cross-Attention 或新的可学习模块。
@@ -205,7 +207,7 @@ F_i^{\mathrm{fused}} = F_i^{G} + F_i^{O}, \quad i=1,2,3,4.
 
 推荐每个案例显示：
 
-`Optical RGB / Ground Truth / M4 Single-stream / M5 DualSegFormer / FP-FN error maps`
+`Optical RGB / Ground Truth / M4 Single-stream / M5 PMDFNet / FP-FN error maps`
 
 可以给出每个案例的 Foreground IoU，并将错误描述与可见区域、误检/漏检位置直接对应；不应仅凭少量例图推断整体鲁棒性。
 
@@ -231,7 +233,7 @@ F_i^{\mathrm{fused}} = F_i^{G} + F_i^{O}, \quad i=1,2,3,4.
 | Table 5 | Fusion + Loss 消融（C1/C2、L1–L3） | 建议 |
 | Table 6 | 参数量、FLOPs、FPS | 必须 |
 | Table 7 | 扰动鲁棒性 | 建议 |
-| Figure 1 | DualSegFormer 网络架构 | 必须（保留并完善原图） |
+| Figure 1 | PMDFNet 网络架构 | 必须（保留并完善原图） |
 | Figure 2 | 分割定性对比 | 必须 |
 | Figure 3 | 扰动强度—性能变化曲线 | 建议 |
 | Figure 4 | 典型失败案例与错误图 | 建议 |
@@ -243,7 +245,7 @@ F_i^{\mathrm{fused}} = F_i^{G} + F_i^{O}, \quad i=1,2,3,4.
 ### Phase 1：建立主对照（最高优先级）
 
 1. 训练 **M4/A3**：单流 ConvNeXt-Tiny + MLP Decoder，7 通道。
-2. 训练 **M5/A4/B1/C1/L3**：原始 DualSegFormer-Tiny，3+4 通道。
+2. 训练 **M5/A4/B1/C1/L3**：原始 PMDFNet-Tiny，3+4 通道。
 3. 用统一脚本得到 mIoU、Foreground IoU、Precision、Recall、F1、Params、GFLOPs、FPS。
 4. 首先判断原始双流相较单流是否稳定有效。
 

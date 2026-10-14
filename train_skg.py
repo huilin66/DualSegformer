@@ -1,4 +1,4 @@
-"""Official train→val entry point for SKG-DualSegFormer experiments.
+"""Official train→val entry point for SKG-PMDFNet experiments.
 
 This entry point intentionally never creates a test loader.  Test evaluation is
 performed by ``eval_skg.py`` after model and hyperparameter choices are frozen.
@@ -193,7 +193,7 @@ class OfficialSegmentationDataset(Dataset):
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Official train→val runner for SKG-DualSegFormer.")
+    parser = argparse.ArgumentParser(description="Official train→val runner for SKG-PMDFNet.")
     parser.add_argument("--data-root", default=get_data_root())
     parser.add_argument("--output-dir", default="outputs_skg/baselines")
     parser.add_argument("--stage", default="baselines")
@@ -691,7 +691,7 @@ def run(config: TrainConfig) -> Path:
         "stage": config.stage,
         "experiment_id": config.experiment_name,
         "seed": config.seed,
-        "model": "SingleStream-SegFormer" if config.model_family == "single" else "SKG-DualSegFormer",
+        "model": "SingleStream-SegFormer" if config.model_family == "single" else "SKG-PMDFNet",
         "encoder": config.encoder,
         "fusion": config.fusion,
         "knowledge_descriptor": Path(config.descriptor_config).name if config.knowledge_mode != "none" else "none",

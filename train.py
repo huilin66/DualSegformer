@@ -42,7 +42,7 @@ def setup_logger(save_dir):
     log_format = "%(asctime)s - %(levelname)s - %(message)s"
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file = os.path.join(save_dir, f"train_log_{timestamp}.txt")
-    logger_name = f"dualsegformer.train.{os.path.abspath(save_dir)}"
+    logger_name = f"pmdfnet.train.{os.path.abspath(save_dir)}"
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
     logger.propagate = False
@@ -128,7 +128,7 @@ def calculate_metrics_from_confusion(confusion):
 def train_pipeline(model_name, conduct_val=False):
     reproducibility = set_seed(RANDOM_SEED)
 
-    if model_name.startswith("dual_"):
+    if model_name.startswith(("dual_", "pmdfnet_")):
         BATCH_SIZE = 16
     elif model_name.startswith("ocrnet"):
         BATCH_SIZE = 8

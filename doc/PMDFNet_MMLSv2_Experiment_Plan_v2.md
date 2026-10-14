@@ -1,9 +1,11 @@
-# DualSegFormer：MMLSv2 期刊实验计划（修订版 v2）
+# PMDFNet：Physically Motivated Dual-Stream Fusion for Multimodal Landslide Segmentation（MMLSv2 期刊实验计划 v2）
+
+本文件中的 PMDFNet 是项目论文统一名称；旧版代码中的 `dual_segformer_*` 仅保留为历史兼容键。
 
 > **目标期刊**：MDPI *Remote Sensing*  
-> **研究定位**：保留既有 DualSegFormer，不增加新的主网络模块；通过公平基线、模态分组消融、统计重复和可复现的数据转换协议，检验双流设计的实际价值。  
+> **研究定位**：保留既有 PMDFNet，不增加新的主网络模块；通过公平基线、模态分组消融、统计重复和可复现的数据转换协议，检验双流设计的实际价值。  
 > **主数据集**：`mmlsv2_mapped_mars_ls`（由 MMLSv2 转换/映射获得；论文中称为 *converted MMLSv2*，**不是新的独立数据集**）。  
-> **主模型**：`DualSegFormer-Small`，两条独立 ConvNeXt-Small 编码器 + 四尺度 Add Fusion + SegFormer All-MLP Decoder。**在开始正式测试集比较前冻结此选择**。  
+> **主模型**：`PMDFNet-Small`，两条独立 ConvNeXt-Small 编码器 + 四尺度 Add Fusion + SegFormer All-MLP Decoder。**在开始正式测试集比较前冻结此选择**。  
 > **对照模型**：单流 ConvNeXt-Small + 同类 MLP Decoder；其他经典分割基线。  
 > **明确排除**：TRB-Net（缺少可重复执行的代码/权重/协议，本计划不将其列为必做对比）。  
 > **实验范围**：仅包含 MMLSv2；Landslide4Sense 另立计划。  
@@ -17,7 +19,7 @@
 
 对应研究问题：
 
-- **RQ1：效果**——在统一 MMLSv2 协议下，DualSegFormer-Small 相较代表性分割方法能否获得稳定的性能改善？
+- **RQ1：效果**——在统一 MMLSv2 协议下，PMDFNet-Small 相较代表性分割方法能否获得稳定的性能改善？
 - **RQ2：容量控制**——双流优点是否超出“两个编码器导致参数量增加”的影响？
 - **RQ3：输入分组**——原始物理动机的 `3+4` 通道分组是否优于相同通道宽度的其他分组？
 - **RQ4：设计合理性**——简单 Add Fusion 和 CE + Dice 是否能提供有竞争力的准确率—复杂度权衡？
@@ -27,7 +29,7 @@
 
 ### 0.1 主模型为何选择 Small
 
-本轮以**当前已验证的 `DualSegFormer-Small`**为主模型，配套使用 ConvNeXt-Small 单流直接对照；**Tiny 仅用于容量/效率补充**，不允许依据 Test 表现事后切换论文主模型。
+本轮以**当前已验证的 `PMDFNet-Small`**为主模型，配套使用 ConvNeXt-Small 单流直接对照；**Tiny 仅用于容量/效率补充**，不允许依据 Test 表现事后切换论文主模型。
 
 应在实验记录中分别交代：
 
@@ -122,10 +124,10 @@
 | M2 | DeepLabV3+ | ResNet50 | 全部 7 通道 | 首轮 |
 | M3 | SegFormer | MiT-B2 | 全部 7 通道 | 首轮 |
 | M4 | **Single-stream ConvNeXt-Small + MLP Decoder** | ConvNeXt-Small | 全部 7 通道 | **首轮，直接对照** |
-| M5 | **DualSegFormer-Small** | ConvNeXt-Small ×2 | 原始 3+4 通道 | **首轮，主方法** |
+| M5 | **PMDFNet-Small** | ConvNeXt-Small ×2 | 原始 3+4 通道 | **首轮，主方法** |
 | M6 | OCRNet | HRNet | 全部 7 通道 | 第二轮可选 |
 | M7 | UPerNet | ConvNeXt | 全部 7 通道 | 第二轮可选 |
-| M8 | DualSegFormer-Tiny | ConvNeXt-Tiny ×2 | 原始 3+4 通道 | 容量/效率补充 |
+| M8 | PMDFNet-Tiny | ConvNeXt-Tiny ×2 | 原始 3+4 通道 | 容量/效率补充 |
 
 **命名提醒**：M4 是 ConvNeXt 编码器配 All-MLP Decoder 的单流对照，不能把它写成原始 MiT 架构的官方 SegFormer。
 
@@ -142,7 +144,7 @@
 | A1 | 单流 ConvNeXt-Small + MLP Decoder | RGB + Grayscale（4） | 仅光学信息 | 新训练 |
 | A2 | 单流 ConvNeXt-Small + MLP Decoder | Thermal + Slope + DEM（3） | 仅地形/热物理信息 | 新训练 |
 | A3 | 单流 ConvNeXt-Small + MLP Decoder | 7 通道 | Early Fusion | **M4** |
-| A4 | DualSegFormer-Small | 原始 3+4 | 原始双流 | **M5** |
+| A4 | PMDFNet-Small | 原始 3+4 | 原始双流 | **M5** |
 | A5 | **近似容量对照：单流 ConvNeXt + MLP Decoder** | 7 通道 | 控制容量/参数量混杂 | 新训练 |
 
 A5 的骨干型号按实际 Params 选择最接近 M5 的已有标准 ConvNeXt 规格，并在**不看 Test 结果**的情况下冻结（例如考虑 ConvNeXt-Base，但必须实测总参数量和 GFLOPs）。如无法严格匹配，应报告百分比偏差，并将比较称为“近似容量对照”，不写成“参数完全相同”。
@@ -155,7 +157,7 @@ A5 的骨干型号按实际 Params 选择最接近 M5 的已有标准 ConvNeXt �
 
 ## E3. 通道分组消融【必须】
 
-**严格控制**：所有方案都使用同一 `DualSegFormer-Small`、相同融合和 Decoder，**Stream 1 固定 3 通道，Stream 2 固定 4 通道**。除首层输入映射外，不调整网络配置。
+**严格控制**：所有方案都使用同一 `PMDFNet-Small`、相同融合和 Decoder，**Stream 1 固定 3 通道，Stream 2 固定 4 通道**。除首层输入映射外，不调整网络配置。
 
 | ID | Stream 1：3 通道 | Stream 2：4 通道 | 理由 | 阶段 |
 |---|---|---|---|---|
@@ -239,7 +241,7 @@ A5 的骨干型号按实际 Params 选择最接近 M5 的已有标准 ConvNeXt �
 
 - **Validation 例图**：可以用于开发阶段分析和论文的解释性展示，但选择标准必须透明。
 - **Test 例图**：在查看模型预测前，按预先确定的随机种子/样本 ID 哈希选择固定测试图像；不得事后只挑出 M5 优势最大的案例。
-- 推荐对每张例图展示：`RGB | GT | Single-stream Small | DualSegFormer-Small | FP/FN error map`。
+- 推荐对每张例图展示：`RGB | GT | Single-stream Small | PMDFNet-Small | FP/FN error map`。
 - 分析类型包括：明显滑坡主体、易误判背景、边界复杂、漏检、误检、两种模型都失败的情形。
 - 建议使用测试集的总体 FP/FN 统计或按图像分布分位数支撑定性讨论，不应从几个案例推导总体性能。
 
@@ -315,7 +317,7 @@ A5 的骨干型号按实际 Params 选择最接近 M5 的已有标准 ConvNeXt �
 | Table 5 | Add vs Concat；CE/Dice Loss | 建议 |
 | Table 6 | Params / GFLOPs / FPS | 必须 |
 | Table 7 | 预设受控扰动及模态缺失 | 建议 |
-| Figure 1 | 原始 DualSegFormer-Small 结构图（更新输入和维度标注） | 必须 |
+| Figure 1 | 原始 PMDFNet-Small 结构图（更新输入和维度标注） | 必须 |
 | Figure 2 | 固定选择规则下的可视化比较 | 必须 |
 | Figure 3 | 扰动等级—性能变化 | 建议 |
 | Figure 4 | 错误统计和失败案例 | 建议 |
@@ -361,4 +363,4 @@ experiments/
 - [ ] 物理分组、效率和鲁棒性方面的论文表述有对应的实证支持。
 - [ ] 不把 converted MMLSv2 说成独立新数据集，不在缺乏证据时声称真实跨区域泛化。
 
-**最后原则**：上述计划提升的是论文方法论质量与可重复性，并不保证 *Remote Sensing* 接收。是否能够围绕不升级的 DualSegFormer 形成足够的期刊贡献，取决于上述对照实验实际揭示了什么。
+**最后原则**：上述计划提升的是论文方法论质量与可重复性，并不保证 *Remote Sensing* 接收。是否能够围绕不升级的 PMDFNet 形成足够的期刊贡献，取决于上述对照实验实际揭示了什么。
