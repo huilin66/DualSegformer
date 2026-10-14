@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import random
+import shutil
 import subprocess
 import sys
 from dataclasses import asdict, dataclass
@@ -32,6 +33,7 @@ DEFAULTS = {
     "channels2": "4,5,6",
     "fusion": "add",
     "in_channels": 7,
+    "input_channels": "0,1,2,3,4,5,6",
     "num_classes": 2,
     "input_size": 128,
     "batch_size": 16,
@@ -61,6 +63,10 @@ DEFAULTS = {
     "min_delta": 0.0,
     "normalization": "auto",
     "dataset_type": "mmlsv2",
+    "use_file_list_dataset": False,
+    "save_auxiliary_checkpoints": False,
+    "finalize_results": False,
+    "final_output_dir": "",
     "dry_run": False,
     "skip_model_init": False,
 }
@@ -79,8 +85,13 @@ def str2bool(value):
 
 def parse_channels(value):
     if isinstance(value, (list, tuple)):
-        return [int(v) for v in value]
-    return [int(v.strip()) for v in str(value).split(",") if v.strip() != ""]
+        channels = [int(v) for v in value]
+    else:
+        channels = [int(v.strip()) for v in str(value).split(",") if v.strip() != ""]
+    invalid = [channel for channel in channels if channel < 0 or channel >= 7]
+    if invalid:
+        raise ValueError(f"Channel indices must be in [0, 6], got {invalid}")
+    return channels
 
 
 def build_parser(defaults=None):
@@ -114,6 +125,11 @@ def build_parser(defaults=None):
     parser.add_argument("--channels2", default=defaults["channels2"])
     parser.add_argument("--fusion", default=defaults["fusion"])
     parser.add_argument("--in-channels", type=int, default=defaults["in_channels"])
+    parser.add_argument(
+        "--input-channels",
+        default=defaults["input_channels"],
+        help="Comma-separated source channel indices selected from the 7-channel input.",
+    )
     parser.add_argument("--num-classes", type=int, default=defaults["num_classes"])
     parser.add_argument("--input-size", type=int, default=defaults["input_size"])
     parser.add_argument("--batch-size", type=int, default=defaults["batch_size"])
@@ -177,6 +193,29 @@ def build_parser(defaults=None):
         choices=["mars_ls", "mmlsv2"],
         help="Dataset type: mars_ls (raw DN, apply mean/std norm) or mmlsv2 (pre-normalized [0,1], skip norm).",
     )
+    parser.add_argument(
+        "--use-file-list-dataset",
+        type=str2bool,
+        default=defaults["use_file_list_dataset"],
+        help="Read split/images and split/masks with the configurable normalization/channel protocol.",
+    )
+    parser.add_argument(
+        "--save-auxiliary-checkpoints",
+        type=str2bool,
+        default=defaults["save_auxiliary_checkpoints"],
+        help="Also save best_<metric>.pth for non-primary metrics; otherwise only best.pth/last.pth are saved.",
+    )
+    parser.add_argument(
+        "--finalize-results",
+        type=str2bool,
+        default=defaults["finalize_results"],
+        help="Copy a completed run to final_output_dir or <data_root>/outputs.",
+    )
+    parser.add_argument(
+        "--final-output-dir",
+        default=defaults["final_output_dir"],
+        help="Final archive root; empty means <data_root>/outputs when finalize-results is enabled.",
+    )
     parser.add_argument("--dry-run", action="store_true", default=defaults["dry_run"])
     parser.add_argument(
         "--skip-model-init",
@@ -205,6 +244,7 @@ class RunConfig:
     channels2: str
     fusion: str
     in_channels: int
+    input_channels: str
     num_classes: int
     input_size: int
     batch_size: int
@@ -234,6 +274,10 @@ class RunConfig:
     min_delta: float
     normalization: str
     dataset_type: str
+    use_file_list_dataset: bool
+    save_auxiliary_checkpoints: bool
+    finalize_results: bool
+    final_output_dir: str
     dry_run: bool
     skip_model_init: bool
 
@@ -304,6 +348,22 @@ def save_run_metadata(cfg, run_dir):
         json.dump(get_git_info(), f, indent=2, ensure_ascii=False)
 
 
+def finalize_run_results(cfg, run_dir):
+    """Archive a completed run under the dataset output directory when requested."""
+    if not cfg.finalize_results:
+        return ""
+    if not cfg.data_root:
+        raise ValueError("finalize_results requires a non-empty data_root")
+
+    output_root = Path(cfg.final_output_dir) if cfg.final_output_dir else Path(cfg.data_root) / "outputs"
+    output_root.mkdir(parents=True, exist_ok=True)
+    target = output_root / Path(run_dir).name
+    if target.exists():
+        raise FileExistsError(f"Final output already exists: {target}")
+    shutil.copytree(run_dir, target)
+    return str(target)
+
+
 def set_seed(seed, deterministic=True):
     from reproducibility import env_bool, set_global_seed
 
@@ -347,6 +407,9 @@ class FileListMarsDataset:
         self.cfg = cfg
         self.is_train = is_train
         self.input_size = cfg.input_size
+        self.input_channels = parse_channels(getattr(cfg, "input_channels", "0,1,2,3,4,5,6"))
+        if not self.input_channels:
+            raise ValueError("input_channels must contain at least one source channel index")
         self.augmentor = (
             MarsAugmentor(prob=cfg.aug_prob)
             if is_train and cfg.augmentation.lower() != "none"
@@ -399,9 +462,14 @@ class FileListMarsDataset:
         image = self.tifffile.imread(str(image_path)).astype(self.np.float32)
         if image.ndim == 3 and image.shape[2] == 7:
             image = image.transpose(2, 0, 1)
+        if image.ndim != 3 or image.shape[0] != 7:
+            raise ValueError(
+                f"Expected a 7-channel image at {image_path}, got shape {tuple(image.shape)}"
+            )
         image[image < -100000] = 0.0
-        if self.mean is not None and image.shape[0] == 7:
+        if self.mean is not None:
             image = (image - self.mean) / (self.std + 1e-8)
+        image = image[self.input_channels]
 
         mask = self.tifffile.imread(str(mask_path)).astype(self.np.float32)
         image_t = self.torch.from_numpy(image).float()
@@ -484,6 +552,18 @@ def build_datasets(cfg, logger):
             val_rows = [r for r in rows if r.get("split", "") == cfg.val_split]
         train_dataset = FileListMarsDataset(cfg.data_root, train_rows, cfg.train_split, cfg, True)
         val_dataset = FileListMarsDataset(cfg.data_root, val_rows, cfg.val_split, cfg, False)
+    elif cfg.use_file_list_dataset:
+        train_dataset = build_labeled_folder_dataset(
+            cfg.data_root, cfg.train_split, cfg, is_train=True
+        )
+        val_dataset = build_labeled_folder_dataset(
+            cfg.data_root, cfg.val_split, cfg, is_train=False
+        )
+        logger.info(
+            "Using file-list protocol with normalization=%s and input_channels=%s.",
+            cfg.normalization,
+            cfg.input_channels,
+        )
     else:
         train_dataset = DatasetClass(
             root_dir=cfg.data_root, split=cfg.train_split, size=cfg.input_size
@@ -809,6 +889,7 @@ SUMMARY_FIELDS = [
     "channels2",
     "fusion",
     "in_channels",
+    "input_channels",
     "num_classes",
     "input_size",
     "batch_size",
@@ -827,6 +908,10 @@ SUMMARY_FIELDS = [
     "early_stopping_patience",
     "min_delta",
     "normalization",
+    "use_file_list_dataset",
+    "save_auxiliary_checkpoints",
+    "finalize_results",
+    "final_output_dir",
     "mixed_precision",
     "deterministic",
     "train_samples",
@@ -917,6 +1002,7 @@ def make_summary_row(
         "channels2": cfg.channels2,
         "fusion": cfg.fusion,
         "in_channels": cfg.in_channels,
+        "input_channels": cfg.input_channels,
         "num_classes": cfg.num_classes,
         "input_size": cfg.input_size,
         "batch_size": cfg.batch_size,
@@ -935,6 +1021,16 @@ def make_summary_row(
         "early_stopping_patience": cfg.early_stopping_patience,
         "min_delta": cfg.min_delta,
         "normalization": cfg.normalization,
+        "use_file_list_dataset": cfg.use_file_list_dataset,
+        "save_auxiliary_checkpoints": cfg.save_auxiliary_checkpoints,
+        "finalize_results": cfg.finalize_results,
+        "final_output_dir": (
+            cfg.final_output_dir
+            if cfg.final_output_dir
+            else str(Path(cfg.data_root) / "outputs")
+            if cfg.finalize_results and cfg.data_root
+            else ""
+        ),
         "mixed_precision": cfg.mixed_precision,
         "deterministic": cfg.deterministic,
         "train_samples": train_samples,
@@ -966,10 +1062,34 @@ def make_summary_row(
         "final_val_loss": final_row.get("val_loss", ""),
         "final_train_loss": final_row.get("train_loss", ""),
         "best_checkpoint": str(run_dir / "checkpoints" / "best.pth"),
-        "best_miou_checkpoint": str(run_dir / "checkpoints" / "best_miou.pth"),
-        "best_iou_fg_checkpoint": str(run_dir / "checkpoints" / "best_iou_fg.pth"),
-        "best_f1_checkpoint": str(run_dir / "checkpoints" / "best_f1.pth"),
-        "best_val_loss_checkpoint": str(run_dir / "checkpoints" / "best_val_loss.pth"),
+        "best_miou_checkpoint": (
+            str(run_dir / "checkpoints" / "best.pth")
+            if cfg.primary_metric == "miou"
+            else str(run_dir / "checkpoints" / "best_miou.pth")
+            if cfg.save_auxiliary_checkpoints
+            else ""
+        ),
+        "best_iou_fg_checkpoint": (
+            str(run_dir / "checkpoints" / "best.pth")
+            if cfg.primary_metric == "iou_fg"
+            else str(run_dir / "checkpoints" / "best_iou_fg.pth")
+            if cfg.save_auxiliary_checkpoints
+            else ""
+        ),
+        "best_f1_checkpoint": (
+            str(run_dir / "checkpoints" / "best.pth")
+            if cfg.primary_metric == "f1"
+            else str(run_dir / "checkpoints" / "best_f1.pth")
+            if cfg.save_auxiliary_checkpoints
+            else ""
+        ),
+        "best_val_loss_checkpoint": (
+            str(run_dir / "checkpoints" / "best.pth")
+            if cfg.primary_metric == "val_loss"
+            else str(run_dir / "checkpoints" / "best_val_loss.pth")
+            if cfg.save_auxiliary_checkpoints
+            else ""
+        ),
         "last_checkpoint": str(run_dir / "checkpoints" / "last.pth"),
         "git_commit": git_info["commit"],
         "git_branch": git_info["branch"],
@@ -1139,16 +1259,17 @@ def run_experiment(cfg):
                 if metric_is_better(metric_name, score, best_scores[metric_name], cfg.min_delta):
                     best_scores[metric_name] = score
                     metric_best_rows[metric_name] = dict(row)
-                    save_checkpoint(
-                        run_dir / "checkpoints" / f"best_{metric_name}.pth",
-                        model,
-                        optimizer,
-                        scheduler,
-                        epoch,
-                        score,
-                        cfg,
-                    )
-                    logger.info("Saved best_%s checkpoint: %.4f", metric_name, score)
+                    if cfg.save_auxiliary_checkpoints:
+                        save_checkpoint(
+                            run_dir / "checkpoints" / f"best_{metric_name}.pth",
+                            model,
+                            optimizer,
+                            scheduler,
+                            epoch,
+                            score,
+                            cfg,
+                        )
+                        logger.info("Saved best_%s checkpoint: %.4f", metric_name, score)
                     if metric_name == cfg.primary_metric:
                         primary_improved = True
                         save_checkpoint(
@@ -1220,6 +1341,9 @@ def run_experiment(cfg):
             ),
         )
         logger.info("Appended run summary: %s", cfg.summary_csv)
+    final_dir = finalize_run_results(cfg, run_dir)
+    if final_dir:
+        logger.info("Archived completed run to dataset outputs: %s", final_dir)
     return run_dir
 
 

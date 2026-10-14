@@ -11,6 +11,9 @@ set -euo pipefail
 #   bash exp_train.sh fusion                  # legacy fusion ablations
 #   bash exp_train.sh capacity                # backbone capacity comparison
 #   bash exp_train.sh new_model               # SKG/new-model pipeline
+#   bash exp_train.sh paper_core              # paper M1-M5, seeds 41/42/43
+#   bash exp_train.sh paper_ablations         # paper key ablations
+#   bash exp_train.sh paper_all               # paper core plus key ablations
 #   bash exp_train.sh test                    # evaluate a selected best checkpoint on public test
 #   bash exp_train.sh all                     # run groups in the planned order
 #
@@ -25,13 +28,17 @@ cd "${REPO_ROOT}"
 
 usage() {
   cat <<'EOF'
-Usage: bash exp_train.sh [reproduce|fusion|capacity|new_model|test|smoke|all]
+Usage: bash exp_train.sh [reproduce|fusion|capacity|new_model|paper_core|paper_ablations|paper_all|test|smoke|all]
 
 Groups:
   reproduce  Reproduce the historical competition configuration.
   fusion     Compare legacy add/cat/attention/MoE fusion variants.
   capacity   Compare Tiny/Small/Base/Large backbones.
   new_model  Run the SKG/new-model pipeline after the baseline is frozen.
+  paper_core Run M1-M5 with seeds 41/42/43 under the frozen paper protocol.
+  paper_ablations
+             Run A1/A2/A5/B2/B3/C2 with seeds 41/42/43.
+  paper_all  Run paper_core followed by paper_ablations.
   test       Evaluate a selected checkpoint on the labeled public test split.
   smoke      Run the repository's data and training smoke tests.
   all        Run groups in the order reproduce -> fusion -> capacity -> new_model.
@@ -66,6 +73,20 @@ case "${GROUP}" in
     ;;
   new_model|skg)
     run_group "exp04_skg_new_model.sh"
+    ;;
+  paper_core)
+    GROUP=core bash "${REPO_ROOT}/scripts/train_paper_experiments.sh"
+    ;;
+  paper_ablations)
+    echo ""
+    echo "######## train_paper_experiments.sh (ablations) ########"
+    GROUP=ablations bash "${REPO_ROOT}/scripts/train_paper_experiments.sh"
+    ;;
+  paper_all)
+    GROUP=core bash "${REPO_ROOT}/scripts/train_paper_experiments.sh"
+    echo ""
+    echo "######## train_paper_experiments.sh (ablations) ########"
+    GROUP=ablations bash "${REPO_ROOT}/scripts/train_paper_experiments.sh"
     ;;
   test|evaluate)
     run_group "evaluate_reproduction_test.sh"
