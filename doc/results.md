@@ -1,6 +1,6 @@
 # PMDFNet：MMLSv2 实验结果记录
 
-> 对应计划：[`doc/PMDFNet_MMLSv2_Experiment_Plan_v2.md`](doc/PMDFNet_MMLSv2_Experiment_Plan_v2.md)  
+> 对应计划：[`PMDFNet_MMLSv2_Experiment_Plan_v2.md`](PMDFNet_MMLSv2_Experiment_Plan_v2.md)<br>
 > 记录日期：2026-10-15  
 > 文档性质：阶段性实验台账，不等同于最终论文中的 Results/Discussion。
 
