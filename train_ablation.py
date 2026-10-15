@@ -411,7 +411,7 @@ class FileListMarsDataset:
         if not self.input_channels:
             raise ValueError("input_channels must contain at least one source channel index")
         self.augmentor = (
-            MarsAugmentor(prob=cfg.aug_prob)
+            MarsAugmentor(prob=cfg.aug_prob, channel_indices=self.input_channels)
             if is_train and cfg.augmentation.lower() != "none"
             else None
         )
