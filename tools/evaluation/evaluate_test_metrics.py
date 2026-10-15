@@ -62,9 +62,20 @@ def parse_args() -> argparse.Namespace:
 class LabeledTestDataset(Dataset):
     """MARS-formatted test images paired with public test masks by stem."""
 
-    def __init__(self, root_dir: str, size: int = 128):
+    def __init__(
+        self,
+        root_dir: str,
+        size: int = 128,
+        input_channels: list[int] | None = None,
+    ):
         self.root_dir = Path(root_dir)
         self.size = size
+        self.input_channels = list(range(7)) if input_channels is None else list(input_channels)
+        if not self.input_channels:
+            raise ValueError("input_channels must contain at least one source channel index")
+        invalid = [channel for channel in self.input_channels if channel < 0 or channel >= 7]
+        if invalid:
+            raise ValueError(f"Channel indices must be in [0, 6], got {invalid}")
         self.images_dir = self.root_dir / "test" / "images"
         self.masks_dir = self.root_dir / "test" / "masks"
         if not self.images_dir.is_dir():
@@ -101,6 +112,7 @@ class LabeledTestDataset(Dataset):
             raise ValueError(f"Expected 7-channel test image, got {image.shape}: {image_path}")
         image[image < -100000] = 0.0
         image = (image - self.mean) / (self.std + 1e-8)
+        image = image[self.input_channels]
 
         mask = tifffile.imread(str(mask_path)).astype(np.int64)
         mask = np.squeeze(mask)
@@ -170,7 +182,9 @@ def load_checkpoint(model: torch.nn.Module, checkpoint_path: Path, device: torch
         model.load_state_dict(stripped)
 
 
-def build_evaluation_model(args: argparse.Namespace) -> tuple[torch.nn.Module, str, str]:
+def build_evaluation_model(
+    args: argparse.Namespace,
+) -> tuple[torch.nn.Module, str, str, list[int]]:
     """Build the exact training model when a run config is supplied."""
     if args.run_config:
         import train_ablation
@@ -184,11 +198,12 @@ def build_evaluation_model(args: argparse.Namespace) -> tuple[torch.nn.Module, s
             **{key: merged[key] for key in train_ablation.DEFAULTS}
         )
         model = train_ablation.build_model(config)
-        return model, config.experiment_name, str(config_path)
+        input_channels = train_ablation.parse_channels(config.input_channels)
+        return model, config.experiment_name, str(config_path), input_channels
 
     if not args.model_name:
         raise ValueError("Provide either --run-config or --model-name")
-    return get_model(args.model_name, in_channels=7, num_classes=2), args.model_name, ""
+    return get_model(args.model_name, in_channels=7, num_classes=2), args.model_name, "", list(range(7))
 
 
 def write_json(path: Path, payload: dict) -> None:
@@ -226,7 +241,8 @@ def main() -> None:
 
     requested_device = args.device
     device = torch.device(requested_device if torch.cuda.is_available() else "cpu")
-    dataset = LabeledTestDataset(str(data_root))
+    model, resolved_model_name, run_config_path, input_channels = build_evaluation_model(args)
+    dataset = LabeledTestDataset(str(data_root), input_channels=input_channels)
     loader = DataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -235,7 +251,6 @@ def main() -> None:
         pin_memory=True,
     )
 
-    model, resolved_model_name, run_config_path = build_evaluation_model(args)
     model = model.to(device)
     load_checkpoint(model, checkpoint_path, device)
     model.eval()
@@ -270,6 +285,7 @@ def main() -> None:
         "dataset_root": str(data_root),
         "model_name": resolved_model_name,
         "run_config": run_config_path,
+        "input_channels": input_channels,
         "checkpoint": str(checkpoint_path),
         "checkpoint_selection": "best validation mIoU checkpoint",
         "device": str(device),
