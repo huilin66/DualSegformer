@@ -38,9 +38,36 @@ pip install -r requirements.txt
 
 ## 论文实验
 
-正式协议位于 `configs/mmlsv2_paper_protocol.json`，包含 M1–M4 基线与关键消融（A1/A2/A5/B2/B3/C2、L1/L2/L3），固定 seed 为 `41 42 43`。全部配置统一使用 CE-only 训练目标（`common.loss=ce`），仅损失消融 L2/L3 显式覆盖。
+正式协议位于 `configs/mmlsv2_paper_protocol.json`，包含 M1–M4 基线与 E1 扩展基线 M6–M11（UPerNet/FPN/MANet/U-Net++ + ResNet50、OCRNet+HRNet18、M3LSNet），以及关键消融（A1/A2/A5/B2/B3/C2、L1/L2/L3），固定 seed 为 `41 42 43`。全部配置统一使用 CE-only 训练目标（`common.loss=ce`），仅损失消融 L2/L3 显式覆盖。
 
 论文主模型 M5 即协议中的 **L1**（PMDFNet-Small + CE-only），只训练一次；A3/A4/B1/C1 是对 M4/L1 的展示别名，不单独训练。协议内 `paper_id_map` 记录了论文 ID 与运行 ID 的对应关系。
+
+新增基线的构造方式：M6–M9 走 `train_ablation.build_model` 的 SMP 分支（`arch` = `upernet` / `fpn` / `manet` / `unetplusplus`，编码器 `tu-resnet50`），M10 走 `networks.OCRNet.SMP_OCRNet`（`ocrnet` + `tu-hrnet_w18`，训练含 0.4 权重的辅助损失），M11 走 `networks.get_model`（`model_name=m3lsnet`，`pretrain=false`）。
+
+在新环境首次运行前，建议先验证新增基线可构造（本机无 torch 时无法完成该验证）：
+
+```bash
+python - <<'PY'
+import json, torch
+import train_ablation as ta
+proto = json.load(open("configs/mmlsv2_paper_protocol.json", encoding="utf-8"))
+common = proto["common"]
+for exp in proto["experiments"]:
+    if exp["id"] not in {"M6", "M7", "M8", "M9", "M10", "M11"}:
+        continue
+    m = dict(common); m.update({k: v for k, v in exp.items() if k in ta.DEFAULTS})
+    m["data_root"] = "/tmp"; m["pretrain"] = exp.get("pretrain", common["pretrain"])
+    for k in ta.DEFAULTS:
+        m.setdefault(k, ta.DEFAULTS[k])
+    cfg = ta.RunConfig(**{k: m[k] for k in ta.DEFAULTS})
+    model = ta.build_model(cfg).eval()
+    with torch.no_grad():
+        out = model(torch.randn(2, cfg.in_channels, cfg.input_size, cfg.input_size))
+    logits = out[0] if isinstance(out, tuple) else out
+    n = sum(p.numel() for p in model.parameters())
+    print(f"{exp['id']:>4} {type(model).__name__:<22} params={n/1e6:7.2f}M out={tuple(logits.shape)}")
+PY
+```
 
 ```bash
 cd /data/huilin/projects/PMDFNet

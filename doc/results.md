@@ -127,17 +127,30 @@ Test 评价共覆盖 `133` 张图像，每个运行使用 batch size `32`、共 
 
 ## E1. 主实验：公平基线对比
 
-**状态：已重置。** 主模型固定为 CE-only 的 PMDFNet-Small（L1）。M1–M4 基线的旧结果使用 combined loss，与主模型口径不一致，已从本文档清空。
+**状态：已重置，并扩展了基线集合。** 主模型固定为 CE-only 的 PMDFNet-Small（L1）。M1–M4 基线的旧结果使用 combined loss，与主模型口径不一致，已从本文档清空；E1 另新增 6 个对比基线（M6–M11）。
 
-为使 E1 成立，M1–M4 必须按 CE-only 重跑（3 seeds）；否则只能把主表降级为"各方法使用各自常规损失"的说明性对比，并在正文逐行标注损失口径。
+为使 E1 成立，M1–M11 必须按 CE-only 重跑（3 seeds）；否则只能把主表降级为"各方法使用各自常规损失"的说明性对比，并在正文逐行标注损失口径。
 
 | ID | 方法 | Val best mIoU | Test mIoU | Test IoU-FG | Test IoU-BG | Test F1 | 当前状态 |
 |---|---|---:|---:|---:|---:|---:|---|
-| M1 | U-Net | — | — | — | — | — | 待 CE-only 重跑 |
-| M2 | DeepLabV3+ ResNet50 | — | — | — | — | — | 待 CE-only 重跑 |
+| M1 | U-Net + ResNeSt50d | — | — | — | — | — | 待 CE-only 重跑 |
+| M2 | DeepLabV3+ ResNeSt50d | — | — | — | — | — | 待 CE-only 重跑 |
 | M3 | SegFormer MiT-B2 | — | — | — | — | — | 待 CE-only 重跑 |
 | M4 | 单流 ConvNeXt-Small + MLP | — | — | — | — | — | 待 CE-only 重跑 |
+| M6 | UPerNet + ResNet50 | — | — | — | — | — | 待 CE-only 重跑（新增） |
+| M7 | FPN + ResNet50 | — | — | — | — | — | 待 CE-only 重跑（新增） |
+| M8 | MANet + ResNet50 | — | — | — | — | — | 待 CE-only 重跑（新增） |
+| M9 | U-Net++ + ResNet50 | — | — | — | — | — | 待 CE-only 重跑（新增） |
+| M10 | OCRNet + HRNet-W18 | — | — | — | — | — | 待 CE-only 重跑（新增） |
+| M11 | M3LSNet | — | — | — | — | — | 待 CE-only 重跑（新增） |
 | M5 | PMDFNet-Small + CE-only | — | — | — | — | — | 采用 L1（见损失消融表） |
+
+新增基线的口径细节：
+
+- M6–M9 使用编码器 `tu-resnet50`（timm `resnet50` + ImageNet 权重）；M10 走 `networks.OCRNet.SMP_OCRNet`（HRNet-OCR 结构，`tu-hrnet_w18`），训练时带辅助头，`forward_loss` 按 `loss_main + 0.4 * loss_aux` 计算；M11 走 `networks.get_model`，`pretrain=false`（M3LSNet 无 ImageNet 权重）。
+- M11 的结果依赖 `mamba_ssm` 是否可导入：可导入时使用 selective-scan 核心，否则使用内置 gated-conv 模拟器。必须记录报告所用的路径。
+- M1–M4 的显示名此前写作 "ResNet50"，但其实际编码器是 `timm-resnest50d`（ResNeSt50d），与新增的 M6–M9 并非同一骨干。上表已按实际编码器标注；如需统一为真正的 ResNet50，需把 M1–M4 的 encoder 一并改为 `tu-resnet50` 后重跑。
+- M6–M11 的 Params/GFLOPs 尚未实测（见 E6.2）。
 
 ### E1.1 损失函数消融（本轮保留的唯一数值结果）
 
@@ -223,7 +236,7 @@ A5 是当前最关键的单点风险：若 A5（约 88.33M）在 CE-only 下达�
 | M4 | 50.09 | 2.40 | 2.82 | 通过 |
 | M5 | 99.54 | 4.32 | 4.83 | 通过 |
 
-A1/A2/A5/B2/B3/C2 的 smoke test 也已通过；其中 A5 约 `88.33M`，C2 约 `101.11M`。当前尚未完成统一工具下的 GFLOPs、FPS、latency、warm-up 和多次测速，因此 Table 6 仍不完整。
+A1/A2/A5/B2/B3/C2 的 smoke test 也已通过；其中 A5 约 `88.33M`，C2 约 `101.11M`。新增基线 M6–M11 的 Params/VRAM 尚未实测：M11（M3LSNet）含瓶颈自注意力与 VSSD 块，应在正式训练前先确认 batch32 下的显存与吞吐。当前尚未完成统一工具下的 GFLOPs、FPS、latency、warm-up 和多次测速，因此 Table 6 仍不完整。
 
 ### E6.3 日志与 checkpoint 完整性
 
@@ -241,17 +254,18 @@ A1/A2/A5/B2/B3/C2 的 smoke test 也已通过；其中 A5 约 `88.33M`，C2 约 
 |---|---|---|
 | 主方法及直接对照 | M4、M5（采用 L1） | M4 待 CE-only 重跑；M5 采用 L1 |
 | 常见代表性基线 | M1、M2、M3 | 已重置，待 CE-only 重跑 |
+| E1 扩展对比基线 | M6 UPerNet+ResNet50、M7 FPN+ResNet50、M8 MANet+ResNet50、M9 U-Net++、M10 OCRNet+HRNet18、M11 M3LSNet | 新增，尚未训练 |
 | 模态贡献 | A1、A2 | 已重置，待 CE-only 重跑 |
 | 容量对照 | A5 近似容量对照 | 已重置，待 CE-only 重跑 |
 | 物理分组 | B1、B2、B3 | B1 复用 L1；B2/B3 已重置，待 CE-only 重跑 |
 | Fusion/损失 | C1、C2、L1、L2、L3 | C1 复用 L1；C2 已重置，待 CE-only 重跑；L1/L2/L3 保留 |
-| 统计 | M1–M5、A1/A2/A5、B2/B3、C2、L1/L2 | 仅 L1/L2/L3 有价值；其余待重跑 |
-| 效率/可视化 | Params、GFLOPs、FPS、固定案例图 | Params/VRAM 部分完成；其余待做 |
+| 统计 | M1–M11、A1/A2/A5、B2/B3、C2、L1/L2 | 仅 L1/L2/L3 有价值；其余待重跑 |
+| 效率/可视化 | Params、GFLOPs、FPS、固定案例图 | Params/VRAM 部分完成；M6–M11 待补；其余待做 |
 
 当前分析关口结论：
 
 1. 主模型为 CE-only 的 PMDFNet-Small，直接采用 L1 结果，不再单独训练 M5。
-2. 除 L1/L2/L3 外，全部结果表已重置；M1–M4 与 A1/A2/A5/B2/B3/C2 需按 CE-only 统一口径重跑。
+2. 除 L1/L2/L3 外，全部结果表已重置；E1 现含 M1–M11 共 10 个对比基线，M1–M4 与 M6–M11 均需按 CE-only 口径训练。
 3. 在重跑完成前，本文档不支撑任何双流增益、容量解释、通道分组或融合算子结论。
 
 ## 3. 推荐执行顺序的实际进度
@@ -259,18 +273,18 @@ A1/A2/A5/B2/B3/C2 的 smoke test 也已通过；其中 A5 约 `88.33M`，C2 约 
 | 阶段 | 计划内容 | 当前进度 |
 |---|---|---|
 | Phase 0 | E0 数据审计与协议冻结 | 部分完成：有 mapping manifest 和固定 split；完整泄漏/统计审计未完成 |
-| Phase 1 | M1–M4（CE-only 重跑）、A5、A1/A2 | 待执行；M5 采用 L1 |
+| Phase 1 | M1–M4、M6–M11（CE-only 重跑/新增）、A5、A1/A2 | 待执行；M5 采用 L1 |
 | Phase 2 | B2/B3、C2（CE-only 重跑）、L1/L2/L3 | B2/B3/C2 待执行；L1/L2/L3 已保留 |
 | Phase 3 | 最终 Test、扰动、可视化、效率与写作 | E5、可视化、效率与统计区间待做 |
 
-建议重跑优先级：M4（唯一公平直接对照）→ A5（容量对照，决定主结论存废）→ M1/M2/M3（统一协议）→ A1/A2/B2/B3/C2。
+建议训练顺序：M4（唯一公平直接对照）→ M6–M10（标准分割基线，一次补齐 E1 表）→ A5（容量对照，决定主结论存废）→ M1/M2/M3（统一协议）→ M11（M3LSNet，先做显存 smoke）→ A1/A2/B2/B3/C2。
 
 ## 4. 期刊图表清单状态
 
 | 编号 | 图表 | 当前状态 |
 |---|---|---|
 | Table 1 | Converted MMLSv2 划分、通道统计、映射协议 | 部分完成，统计与泄漏审计待补 |
-| Table 2 | M1–M5 主基线 mean±std | 已重置，待 CE-only 重跑 |
+| Table 2 | M1–M11 主基线 mean±std（含新增 6 个对比基线） | 已重置，待 CE-only 重跑 |
 | Table 3 | A1–A5 模态/容量消融 | 已重置，待 CE-only 重跑 |
 | Table 4 | B1–B3 通道分组 | 已重置，待 CE-only 重跑；B4 未执行 |
 | Table 5 | Add vs. Concat、CE/Dice | 损失部分已有（L1/L2/L3）；融合部分待 C2 重跑 |
@@ -296,11 +310,11 @@ A1/A2/A5/B2/B3/C2 的 smoke test 也已通过；其中 A5 约 `88.33M`，C2 约 
 
 ### 协议配置状态
 
-- 协议版本：`pmdfnet_mmlsv2_remote_sensing_v3_ce_only`；`common.loss = "ce"`，`batch_size = 32`。
-- 统一口径：M1–M4 基线与全部消融均继承 `common.loss = ce`；仅损失消融 L2（`dice`）与 L3（`combined`）显式覆盖。
+- 协议版本：`pmdfnet_mmlsv2_remote_sensing_v4_ce_only_extended_baselines`；`common.loss = "ce"`，`batch_size = 32`。
+- 统一口径：M1–M11 基线与全部消融均继承 `common.loss = ce`；仅损失消融 L2（`dice`）与 L3（`combined`）显式覆盖。
 - M5：协议中已不再保留独立 M5 条目，M5 由 L1 承担（`paper_id` 映射：`M5 → L1`）；A3/A4/B1/C1 同为展示别名（`M4` / `L1`），不单独训练。
 - 协议新增 `paper_id`（逐实验）与 `paper_id_map`（论文 ID → 运行 ID）两级映射，便于汇总脚本与论文表格对齐。
-- 正式运行集共 **39** 个 run：M1–M4 × 3 +（A1、A2、A5、B2、B3、C2）× 3 +（L1、L2、L3）× 3。`tools/evaluation/evaluate_paper_tests.sh` 的 `EXPECTED_RUNS`（可用同名环境变量覆盖）已同步为该数量。
+- 正式运行集共 **57** 个 run：M1–M4 与 M6–M11（10 个核心基线）× 3 +（A1、A2、A5、B2、B3、C2）× 3 +（L1、L2、L3）× 3。`tools/evaluation/evaluate_paper_tests.sh` 的 `EXPECTED_RUNS`（可用同名环境变量覆盖）已同步为该数量。
 - 运行目录命名：CE-only 重跑的实验名统一带 `_ce` 后缀（如 `M4_single_convnext_small_mlp_ce`），以区别于旧 combined-loss 的 `M1_unet_resnet50` / `M4_single_convnext_small_mlp` 等历史 run。两代 run 不得混用。
 - L3 的旧记录口径存疑：`doc` 中历史上的 L3 数值来自更早的协议（可能是 `UnetFormerLoss`，而非当前的 `CombinedLoss` = CE + Dice），因此该 cell 必须重跑，不能与旧数值互换。
 
@@ -315,12 +329,14 @@ A1/A2/A5/B2/B3/C2 的 smoke test 也已通过；其中 A5 约 `88.33M`，C2 约 
 ## 6. 投稿前检查清单
 
 - [x] 主模型固定为 CE-only 的 PMDFNet-Small，直接采用 L1 结果；M5 不再单独训练。
-- [ ] 完成 M1–M4 的 CE-only 三 seed 重跑（统一损失口径后才可写"统一协议公平对比"）。
+- [ ] 完成 M1–M4、M6–M11 的 CE-only 三 seed 重跑/训练（统一损失口径后才可写"统一协议公平对比"）。
 - [ ] 完成 A1/A2/A5、B2/B3、C2 的 CE-only 三 seed 重跑。
 - [x] 已记录 best checkpoint 按验证集 mIoU 选择，并保存 best/last 与完整训练日志。
 - [x] 已完成 batch32、A100 80GB、40GB 显存上限下的核心 smoke test。
-- [x] 统一 `configs/mmlsv2_paper_protocol.json` 的 `common.loss` 口径为 `ce`，并清理 M5/L1 的重复配置项（协议版本升至 `pmdfnet_mmlsv2_remote_sensing_v3_ce_only`，M5 由 L1 承担）。
-- [ ] 重跑前确认正式运行集为 39 个 run（M1–M4、A1/A2/A5/B2/B3/C2、L1/L2/L3 × 3 seeds），并核对 `tools/evaluation/evaluate_paper_tests.sh` 的 `EXPECTED_RUNS`。
+- [x] 统一 `configs/mmlsv2_paper_protocol.json` 的 `common.loss` 口径为 `ce`，并清理 M5/L1 的重复配置项（协议版本升至 `pmdfnet_mmlsv2_remote_sensing_v4_ce_only_extended_baselines`，M5 由 L1 承担）。
+- [ ] 重跑前确认正式运行集为 57 个 run（M1–M4 + M6–M11、A1/A2/A5/B2/B3/C2、L1/L2/L3 × 3 seeds），并核对 `tools/evaluation/evaluate_paper_tests.sh` 的 `EXPECTED_RUNS`。
+- [ ] 在远程环境验证 M6–M11 可构造：确认 `tu-resnet50`、`tu-hrnet_w18` 以及 `tu-hrnet_w18` 依赖的 timm 版本可用；M11 记录 `mamba_ssm` 是否可导入。
+- [ ] 补测 M6–M11 的 Params/GFLOPs/显存，并确认 M11 在 batch32 下的可行性。
 - [ ] 完成 E0 通道、单位、归一化、映射、哈希和场景/相邻切片泄漏审计。
 - [ ] A5 保留"近似容量对照"表述，并在重跑后明确容量解释。
 - [ ] B4 未执行，需在论文中说明。
@@ -331,6 +347,6 @@ A1/A2/A5/B2/B3/C2 的 smoke test 也已通过；其中 A5 约 `88.33M`，C2 约 
 
 ## 结论（当前阶段）
 
-当前论文主模型定义为 PMDFNet-Small + CE-only（L1），已完成的损失函数消融显示 CE-only 优于 Dice-only 与 CE + Dice。除 L1/L2/L3 外，本文档全部结果表已重置：M1–M4 基线使用 combined loss，A1/A2/A5/B2/B3/C2 的旧结果同属旧协议，均不能作为当前结果。因此目前不对双流结构、容量或通道分组作任何结论。
+当前论文主模型定义为 PMDFNet-Small + CE-only（L1），已完成的损失函数消融显示 CE-only 优于 Dice-only 与 CE + Dice。除 L1/L2/L3 外，本文档全部结果表已重置。E1 主表现包含 M1–M11 共 10 个对比基线：M1–M4 的旧结果使用 combined loss，M6–M11（UPerNet、FPN、MANet、U-Net++、OCRNet+HRNet18、M3LSNet）为新增基线且尚未训练，A1/A2/A5/B2/B3/C2 的旧结果同属旧协议，均不能作为当前结果。因此目前不对双流结构、容量或通道分组作任何结论。
 
-下一步应先统一协议损失口径并完成 M1–M4（尤其是 M4）与 A5 的 CE-only 重跑，再补 A1/A2/B2/B3/C2；同时完成 E0 数据与泄漏审计、严格的 Params/GFLOPs 对齐、图像级 bootstrap/配对统计和 E5 鲁棒性实验，并将 Test 结果统一归档后，再决定是否进入 Remote Sensing 投稿稿件的最终 Results/Discussion。
+下一步应先统一协议损失口径并完成 M1–M4 与 M6–M11 的 CE-only 训练（M4 与 A5 优先），再补 A1/A2/B2/B3/C2；同时完成 E0 数据与泄漏审计、严格的 Params/GFLOPs 对齐、图像级 bootstrap/配对统计和 E5 鲁棒性实验，并将 Test 结果统一归档后，再决定是否进入 Remote Sensing 投稿稿件的最终 Results/Discussion。

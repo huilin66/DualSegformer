@@ -1,17 +1,42 @@
 {
   "project_name": "PMDFNet",
   "project_full_name": "Physically Motivated Dual-Stream Fusion for Multimodal Landslide Segmentation",
-  "protocol_version": "pmdfnet_mmlsv2_remote_sensing_v3_ce_only",
-  "description": "Paper protocol for PMDFNet on converted MMLSv2. The paper's frozen training objective is CE-only, so common.loss is ce: every baseline (M1-M4) and every reported ablation must use the same objective as the main model. Only the loss ablation family (L2 dice, L3 combined) overrides the loss. The mapped data preserve the competition-like 7-channel Mars representation; the fixed MARS training-protocol mean/std is applied unchanged to validation/test.",
-  "seeds": [41, 42, 43],
-  "groups": ["core", "ablations"],
+  "protocol_version": "pmdfnet_mmlsv2_remote_sensing_v4_ce_only_extended_baselines",
+  "description": "Paper protocol for PMDFNet on converted MMLSv2. The paper's frozen training objective is CE-only, so common.loss is ce: every baseline (M1-M11) and every reported ablation must use the same objective as the main model. Only the loss ablation family (L2 dice, L3 combined) overrides the loss. The mapped data preserve the competition-like 7-channel Mars representation; the fixed MARS training-protocol mean/std is applied unchanged to validation/test.",
+  "seeds": [
+    41,
+    42,
+    43
+  ],
+  "groups": [
+    "core",
+    "ablations"
+  ],
   "paper_id_map": {
-    "M1": "M1", "M2": "M2", "M3": "M3", "M4": "M4",
+    "M1": "M1",
+    "M2": "M2",
+    "M3": "M3",
+    "M4": "M4",
     "M5": "L1",
-    "A1": "A1", "A2": "A2", "A3": "M4", "A4": "L1", "A5": "A5",
-    "B1": "L1", "B2": "B2", "B3": "B3",
-    "C1": "L1", "C2": "C2",
-    "L1": "L1", "L2": "L2", "L3": "L3"
+    "A1": "A1",
+    "A2": "A2",
+    "A3": "M4",
+    "A4": "L1",
+    "A5": "A5",
+    "B1": "L1",
+    "B2": "B2",
+    "B3": "B3",
+    "C1": "L1",
+    "C2": "C2",
+    "L1": "L1",
+    "L2": "L2",
+    "L3": "L3",
+    "M6": "M6",
+    "M7": "M7",
+    "M8": "M8",
+    "M9": "M9",
+    "M10": "M10",
+    "M11": "M11"
   },
   "paper_id_map_notes": "Paper-facing experiment ID to protocol run ID. The paper's main model M5 is the L1 configuration (PMDFNet-Small + CE-only, channels 0,1,2 vs 3,4,5,6, Add fusion); it is trained exactly once as L1. A3/A4/B1/C1 are display aliases over M4/L1 and must not be trained again.",
   "common": {
@@ -220,6 +245,68 @@
       "in_channels": 7,
       "loss": "combined",
       "notes": "Intentional loss-ablation override (combined = CE + Dice as implemented by losses.CombinedLoss). The legacy history of this cell is ambiguous: the number recorded in doc/results.md came from the older protocol (possibly UnetFormerLoss), so this run must be retrained now and must not be reported as interchangeable with it."
+    },
+    {
+      "id": "M6",
+      "group": "core",
+      "paper_id": "M6",
+      "experiment_name": "M6_upernet_resnet50_ce",
+      "arch": "upernet",
+      "encoder": "tu-resnet50",
+      "in_channels": 7,
+      "notes": "Extra E1 baseline: UPerNet + ResNet50. Encoder string is 'tu-resnet50' (timm resnet50 with ImageNet weights); the display name 'ResNet50' matches the encoder used by M1/M2."
+    },
+    {
+      "id": "M7",
+      "group": "core",
+      "paper_id": "M7",
+      "experiment_name": "M7_fpn_resnet50_ce",
+      "arch": "fpn",
+      "encoder": "tu-resnet50",
+      "in_channels": 7,
+      "notes": "Extra E1 baseline: FPN + ResNet50 (tu-resnet50)."
+    },
+    {
+      "id": "M8",
+      "group": "core",
+      "paper_id": "M8",
+      "experiment_name": "M8_manet_resnet50_ce",
+      "arch": "manet",
+      "encoder": "tu-resnet50",
+      "in_channels": 7,
+      "notes": "Extra E1 baseline: MANet + ResNet50 (tu-resnet50). Note the legacy networks.get_model key 'manet_resnest50' uses a ResNeSt50d encoder and is NOT this run."
+    },
+    {
+      "id": "M9",
+      "group": "core",
+      "paper_id": "M9",
+      "experiment_name": "M9_unetplusplus_resnet50_ce",
+      "arch": "unetplusplus",
+      "encoder": "tu-resnet50",
+      "in_channels": 7,
+      "notes": "Extra E1 baseline: U-Net++ (nested U-Net) + ResNet50 (tu-resnet50). Legacy key 'unetplusplus_resnest50' is a different encoder."
+    },
+    {
+      "id": "M10",
+      "group": "core",
+      "paper_id": "M10",
+      "experiment_name": "M10_ocrnet_hrnet18_ce",
+      "arch": "ocrnet",
+      "encoder": "tu-hrnet_w18",
+      "in_channels": 7,
+      "notes": "Extra E1 baseline: HRNet-OCR (Object Contextual Representation) with HRNet-W18, via networks.OCRNet.SMP_OCRNet. Trains with an auxiliary head: forward_loss adds 0.4 * aux loss. Requires tu-hrnet_w18 in timm; same encoder string as the legacy ocrnet_hrnet_w18 key."
+    },
+    {
+      "id": "M11",
+      "group": "core",
+      "paper_id": "M11",
+      "experiment_name": "M11_m3lsnet_ce",
+      "model_name": "m3lsnet",
+      "arch": "segformer",
+      "encoder": "tu-convnext_small",
+      "in_channels": 7,
+      "pretrain": false,
+      "notes": "Extra E1 baseline: M3LSNet (VSSD/Mamba-style encoder + MFF skip fusion + MLP head), constructed through networks.get_model. pretrain=false because M3LSNet defines no ImageNet weights. Results depend on whether mamba_ssm is importable: with it the selective-scan core runs, otherwise the built-in gated-conv simulator is used. Record which path the reported runs used."
     }
   ]
 }

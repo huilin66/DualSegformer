@@ -625,7 +625,19 @@ def build_model(cfg):
     if cfg.model_name and cfg.model_name.lower() not in {"auto", "custom"}:
         from networks import get_model
 
-        return get_model(cfg.model_name, in_channels=cfg.in_channels, num_classes=cfg.num_classes)
+        # M3LSNet is a custom architecture that cannot be rebuilt through
+        # ``plain_model``; get_model already forwards in_channels/num_classes.
+        if cfg.model_name.lower().startswith("m3lsnet"):
+            return get_model("m3lsnet", in_channels=cfg.in_channels, num_classes=cfg.num_classes)
+
+        # Any other literal model_name is a legacy checkpoint identifier. It used
+        # to fall through to ``plain_model`` and return None, which failed much
+        # later with an unrelated error; fail loudly here instead.
+        raise ValueError(
+            "Unsupported literal model_name for paper configs: "
+            f"{cfg.model_name!r}. Use one of the arch values handled by "
+            "plain_model, 'm3lsnet', or 'custom' (default)."
+        )
 
     import segmentation_models_pytorch as smp
     from networks.dual_model import UniversalDualWrapper
@@ -648,7 +660,16 @@ def build_model(cfg):
                 in_channels=in_channels,
                 classes=cfg.num_classes,
             )
-        if arch.endswith("unet") or arch == "unet":
+        # Must be matched before the ``endswith("unet")`` branch below, which
+        # would otherwise also capture "unetplusplus".
+        if arch in {"unetplusplus", "unet_plus_plus", "unetpp"}:
+            return smp.UnetPlusPlus(
+                encoder_name=cfg.encoder,
+                encoder_weights=weights,
+                in_channels=in_channels,
+                classes=cfg.num_classes,
+            )
+        if arch == "unet" or arch.endswith("unet"):
             return smp.Unet(
                 encoder_name=cfg.encoder,
                 encoder_weights=weights,
@@ -666,6 +687,23 @@ def build_model(cfg):
             return smp.FPN(
                 encoder_name=cfg.encoder,
                 encoder_weights=weights,
+                in_channels=in_channels,
+                classes=cfg.num_classes,
+            )
+        if arch == "manet":
+            return smp.MAnet(
+                encoder_name=cfg.encoder,
+                encoder_weights=weights,
+                in_channels=in_channels,
+                classes=cfg.num_classes,
+            )
+        if arch == "ocrnet":
+            # networks.OCRNet.SMP_OCRNet returns ``(final, aux)`` logits while
+            # training; forward_loss already applies the 0.4 aux-loss weighting.
+            from networks.OCRNet import SMP_OCRNet
+
+            return SMP_OCRNet(
+                encoder_name=cfg.encoder,
                 in_channels=in_channels,
                 classes=cfg.num_classes,
             )
