@@ -16,16 +16,24 @@ BATCH_SIZE="${BATCH_SIZE:-32}"
 NUM_WORKERS="${NUM_WORKERS:-4}"
 RUN_ROOT="${RUN_ROOT:-outputs_experiments/pmdfnet_mmlsv2}"
 
+# Full formal matrix under the CE-only protocol:
+#   M1-M4 core baselines              -> 4 x 3 = 12
+#   A1 A2 A5 B2 B3 C2                 -> 6 x 3 = 18
+#   L1 L2 L3 loss/fusion family       -> 3 x 3 =  9
+#   total                                  39
+# A3/A4/B1/C1 are display aliases over M4/L1 and are never trained separately.
+EXPECTED_RUNS="${EXPECTED_RUNS:-39}"
+
 mapfile -t RUN_DIRS < <(
   find "$RUN_ROOT" -type f -path '*/logs/train.log' \
     -exec grep -l 'Training completed' {} + \
-    | grep -E '/(A1|A2|A5|B2|B3|C2|L1|L2)_.*_s(41|42|43)_' \
+    | grep -E '/(M1|M2|M3|M4|A1|A2|A5|B2|B3|C2|L1|L2|L3)_.*_s(41|42|43)_' \
     | sed 's#/logs/train.log##' \
     | sort
 )
 
-if [[ "${#RUN_DIRS[@]}" -ne 24 ]]; then
-  printf 'Expected 24 formal paper runs, found %s.\n' "${#RUN_DIRS[@]}" >&2
+if [[ "${#RUN_DIRS[@]}" -ne "${EXPECTED_RUNS}" ]]; then
+  printf 'Expected %s formal paper runs, found %s.\n' "${EXPECTED_RUNS}" "${#RUN_DIRS[@]}" >&2
   printf '%s\n' "${RUN_DIRS[@]}" >&2
   exit 1
 fi

@@ -8,7 +8,7 @@
 
 当前论文主模型定义为 **PMDFNet-Small + CE-only**，其配置为原 L1；论文结果表中记为 M5。
 
-**本次重置口径**：除损失函数消融 L1/L2/L3 外，其余全部实验（M1–M4、M5 的独立 run、A1/A2/A5、B2/B3、C2）的数值均已从本文档清空。这些配置的旧结果来自此前的 combined-loss（CE + Dice）协议，与当前主模型的 CE-only 口径不一致，不得继续引用，需按统一口径重跑后重新填入。
+**本次重置口径**：除损失函数消融 L1/L2/L3 外，其余全部实验（M1–M4、A1/A2/A5、B2/B3、C2）的数值均已从本文档清空。协议中已不存在独立的 M5 条目（见 §5 配置状态）。这些配置的旧结果来自此前的 combined-loss（CE + Dice）协议，与当前主模型的 CE-only 口径不一致，不得继续引用，需按统一口径重跑后重新填入。
 
 重置后本文档保留的唯一数值是损失函数消融参考结果（CE / Dice / CE+Dice，同一 PMDFNet-Small 架构、同一训练协议）：
 
@@ -294,10 +294,20 @@ A1/A2/A5/B2/B3/C2 的 smoke test 也已通过；其中 A5 约 `88.33M`，C2 约 
 - 正式运行目录：远程 `outputs_experiments/pmdfnet_mmlsv2/`；历史 run 仍保留，当前有效表格仅保留 L1/L2/L3。M5 采用 L1，不单独训练；当前尚未统一同步到数据集 `outputs/` 目录。
 - 数据映射记录：远程数据根目录下的 `mapping_manifest.json`。
 
+### 协议配置状态
+
+- 协议版本：`pmdfnet_mmlsv2_remote_sensing_v3_ce_only`；`common.loss = "ce"`，`batch_size = 32`。
+- 统一口径：M1–M4 基线与全部消融均继承 `common.loss = ce`；仅损失消融 L2（`dice`）与 L3（`combined`）显式覆盖。
+- M5：协议中已不再保留独立 M5 条目，M5 由 L1 承担（`paper_id` 映射：`M5 → L1`）；A3/A4/B1/C1 同为展示别名（`M4` / `L1`），不单独训练。
+- 协议新增 `paper_id`（逐实验）与 `paper_id_map`（论文 ID → 运行 ID）两级映射，便于汇总脚本与论文表格对齐。
+- 正式运行集共 **39** 个 run：M1–M4 × 3 +（A1、A2、A5、B2、B3、C2）× 3 +（L1、L2、L3）× 3。`tools/evaluation/evaluate_paper_tests.sh` 的 `EXPECTED_RUNS`（可用同名环境变量覆盖）已同步为该数量。
+- 运行目录命名：CE-only 重跑的实验名统一带 `_ce` 后缀（如 `M4_single_convnext_small_mlp_ce`），以区别于旧 combined-loss 的 `M1_unet_resnet50` / `M4_single_convnext_small_mlp` 等历史 run。两代 run 不得混用。
+- L3 的旧记录口径存疑：`doc` 中历史上的 L3 数值来自更早的协议（可能是 `UnetFormerLoss`，而非当前的 `CombinedLoss` = CE + Dice），因此该 cell 必须重跑，不能与旧数值互换。
+
 ### 复现注意事项
 
 1. 运行数据路径、远程主机和输出目录应通过环境变量提供，不应写死到论文命令中。
-2. 重跑必须显式使用 batch32，并确认 `loss` 口径为 `ce`（当前协议 `common.loss` 仍为 `combined`，需先统一）。
+2. 重跑必须显式使用 batch32；损失口径已由协议 `common.loss = "ce"` 统一，无需再逐实验覆盖（L2/L3 除外）。
 3. 应在 clean working tree 和固定 commit 下重跑 M1（含此前 dirty 的 seed 41），并把最终 commit/hash 写入结果归档。
 4. 当前结果依赖不能公开再分发的映射数据；论文需要提供合法数据来源和确定性转换步骤，而不能把 converted MMLSv2 表述为新的独立数据集。
 5. L2/L3 的 Val 最优 mIoU、IoU-BG 与逐 seed 数值未归档在本文件，重跑或补录前不要在论文中引用这些空缺项。
@@ -309,7 +319,8 @@ A1/A2/A5/B2/B3/C2 的 smoke test 也已通过；其中 A5 约 `88.33M`，C2 约 
 - [ ] 完成 A1/A2/A5、B2/B3、C2 的 CE-only 三 seed 重跑。
 - [x] 已记录 best checkpoint 按验证集 mIoU 选择，并保存 best/last 与完整训练日志。
 - [x] 已完成 batch32、A100 80GB、40GB 显存上限下的核心 smoke test。
-- [ ] 统一 `configs/mmlsv2_paper_protocol.json` 的 `common.loss` 口径，并清理 M5/L1 的重复配置项。
+- [x] 统一 `configs/mmlsv2_paper_protocol.json` 的 `common.loss` 口径为 `ce`，并清理 M5/L1 的重复配置项（协议版本升至 `pmdfnet_mmlsv2_remote_sensing_v3_ce_only`，M5 由 L1 承担）。
+- [ ] 重跑前确认正式运行集为 39 个 run（M1–M4、A1/A2/A5/B2/B3/C2、L1/L2/L3 × 3 seeds），并核对 `tools/evaluation/evaluate_paper_tests.sh` 的 `EXPECTED_RUNS`。
 - [ ] 完成 E0 通道、单位、归一化、映射、哈希和场景/相邻切片泄漏审计。
 - [ ] A5 保留"近似容量对照"表述，并在重跑后明确容量解释。
 - [ ] B4 未执行，需在论文中说明。

@@ -1,10 +1,19 @@
 {
   "project_name": "PMDFNet",
   "project_full_name": "Physically Motivated Dual-Stream Fusion for Multimodal Landslide Segmentation",
-  "protocol_version": "pmdfnet_mmlsv2_remote_sensing_v2_ce_rerun",
-  "description": "Paper-grade first-round protocol for PMDFNet on converted MMLSv2. The mapped data preserve the competition-like 7-channel Mars representation; the fixed MARS training-protocol mean/std is applied unchanged to validation/test.",
+  "protocol_version": "pmdfnet_mmlsv2_remote_sensing_v3_ce_only",
+  "description": "Paper protocol for PMDFNet on converted MMLSv2. The paper's frozen training objective is CE-only, so common.loss is ce: every baseline (M1-M4) and every reported ablation must use the same objective as the main model. Only the loss ablation family (L2 dice, L3 combined) overrides the loss. The mapped data preserve the competition-like 7-channel Mars representation; the fixed MARS training-protocol mean/std is applied unchanged to validation/test.",
   "seeds": [41, 42, 43],
   "groups": ["core", "ablations"],
+  "paper_id_map": {
+    "M1": "M1", "M2": "M2", "M3": "M3", "M4": "M4",
+    "M5": "L1",
+    "A1": "A1", "A2": "A2", "A3": "M4", "A4": "L1", "A5": "A5",
+    "B1": "L1", "B2": "B2", "B3": "B3",
+    "C1": "L1", "C2": "C2",
+    "L1": "L1", "L2": "L2", "L3": "L3"
+  },
+  "paper_id_map_notes": "Paper-facing experiment ID to protocol run ID. The paper's main model M5 is the L1 configuration (PMDFNet-Small + CE-only, channels 0,1,2 vs 3,4,5,6, Add fusion); it is trained exactly once as L1. A3/A4/B1/C1 are display aliases over M4/L1 and must not be trained again.",
   "common": {
     "data_root": "",
     "train_split": "train",
@@ -32,7 +41,7 @@
     "weight_decay": 0.0005,
     "optimizer": "adamw",
     "scheduler": "cosine",
-    "loss": "combined",
+    "loss": "ce",
     "ignore_index": 255,
     "augmentation": "mars",
     "aug_prob": 0.5,
@@ -61,81 +70,80 @@
     {
       "id": "M1",
       "group": "core",
-      "experiment_name": "M1_unet_resnet50",
+      "paper_id": "M1",
+      "experiment_name": "M1_unet_resnet50_ce",
       "arch": "unet",
       "encoder": "resnet50",
-      "in_channels": 7
+      "in_channels": 7,
+      "notes": "CE-only rerun. The legacy M1_unet_resnet50 runs used combined loss and are not comparable with the CE-only main model."
     },
     {
       "id": "M2",
       "group": "core",
-      "experiment_name": "M2_deeplabv3plus_resnet50",
+      "paper_id": "M2",
+      "experiment_name": "M2_deeplabv3plus_resnet50_ce",
       "arch": "deeplabv3plus",
       "encoder": "resnet50",
-      "in_channels": 7
+      "in_channels": 7,
+      "notes": "CE-only rerun. The legacy M2_deeplabv3plus_resnet50 runs used combined loss."
     },
     {
       "id": "M3",
       "group": "core",
-      "experiment_name": "M3_segformer_mitb2",
+      "paper_id": "M3",
+      "experiment_name": "M3_segformer_mitb2_ce",
       "arch": "segformer",
       "encoder": "mit_b2",
-      "in_channels": 7
+      "in_channels": 7,
+      "notes": "CE-only rerun. The legacy M3_segformer_mitb2 runs used combined loss."
     },
     {
       "id": "M4",
       "group": "core",
-      "experiment_name": "M4_single_convnext_small_mlp",
+      "paper_id": "M4",
+      "experiment_name": "M4_single_convnext_small_mlp_ce",
       "arch": "segformer",
       "encoder": "tu-convnext_small",
-      "in_channels": 7
-    },
-    {
-      "id": "M5",
-      "group": "core",
-      "experiment_name": "M5_pmdfnet_small_ce",
-      "arch": "pmdfnet",
-      "encoder": "tu-convnext_small",
-      "channels1": "0,1,2",
-      "channels2": "3,4,5,6",
-      "fusion": "add",
       "in_channels": 7,
-      "loss": "ce"
+      "notes": "CE-only rerun. This is the single-stream direct control and the highest-priority rerun; the legacy M4_single_convnext_small_mlp runs used combined loss. A3 displays this run."
     },
     {
       "id": "A1",
       "group": "ablations",
+      "paper_id": "A1",
       "experiment_name": "A1_optical_only_single_small_ce",
       "arch": "segformer",
       "encoder": "tu-convnext_small",
       "input_channels": "3,4,5,6",
       "in_channels": 4,
-      "loss": "ce"
+      "notes": "Optical-only single stream. Legacy runs used combined loss."
     },
     {
       "id": "A2",
       "group": "ablations",
+      "paper_id": "A2",
       "experiment_name": "A2_physical_only_single_small_ce",
       "arch": "segformer",
       "encoder": "tu-convnext_small",
       "input_channels": "0,1,2",
       "in_channels": 3,
-      "loss": "ce"
+      "notes": "Physical-only single stream. Legacy runs used combined loss."
     },
     {
       "id": "A5",
       "group": "ablations",
+      "paper_id": "A5",
       "experiment_name": "A5_approx_capacity_control_convnext_base_ce",
       "arch": "segformer",
       "encoder": "tu-convnext_base",
       "input_channels": "0,1,2,3,4,5,6",
       "in_channels": 7,
-      "loss": "ce",
-      "notes": "近似容量对照：单流 ConvNeXt-Base + MLP Decoder；最终以实测 Params/GFLOPs 报告容量偏差。"
+      "notes": "Approximate capacity control: single-stream ConvNeXt-Base + MLP decoder. Report measured Params/GFLOPs deviation instead of claiming an exact parameter match. Legacy runs used combined loss."
     },
     {
       "id": "B2",
       "group": "ablations",
+      "paper_id": "B2",
       "experiment_name": "B2_group_rgb_vs_physical_grayscale_ce",
       "arch": "pmdfnet",
       "encoder": "tu-convnext_small",
@@ -143,11 +151,12 @@
       "channels2": "0,1,2,3",
       "fusion": "add",
       "in_channels": 7,
-      "loss": "ce"
+      "notes": "Alternative channel grouping: RGB vs (physical + grayscale). Legacy runs used combined loss."
     },
     {
       "id": "B3",
       "group": "ablations",
+      "paper_id": "B3",
       "experiment_name": "B3_mixed_channel_grouping_ce",
       "arch": "pmdfnet",
       "encoder": "tu-convnext_small",
@@ -155,11 +164,12 @@
       "channels2": "1,4,5,6",
       "fusion": "add",
       "in_channels": 7,
-      "loss": "ce"
+      "notes": "Alternative channel grouping without physical semantics. Legacy runs used combined loss."
     },
     {
       "id": "C2",
       "group": "ablations",
+      "paper_id": "C2",
       "experiment_name": "C2_concat_fusion_ce",
       "arch": "pmdfnet",
       "encoder": "tu-convnext_small",
@@ -167,11 +177,12 @@
       "channels2": "3,4,5,6",
       "fusion": "cat",
       "in_channels": 7,
-      "loss": "ce"
+      "notes": "Concat + 1x1 conv fusion against the Add fusion of the main model. Legacy runs used combined loss."
     },
     {
       "id": "L1",
       "group": "ablations",
+      "paper_id": "M5",
       "experiment_name": "L1_ce_only",
       "arch": "pmdfnet",
       "encoder": "tu-convnext_small",
@@ -179,11 +190,13 @@
       "channels2": "3,4,5,6",
       "fusion": "add",
       "in_channels": 7,
-      "loss": "ce"
+      "loss": "ce",
+      "notes": "Main model. This run is the paper's M5 as well as the CE-only row of the loss ablation, and it is also displayed as A4/B1/C1. Train it exactly once. No separate M5 entry exists in this protocol."
     },
     {
       "id": "L2",
       "group": "ablations",
+      "paper_id": "L2",
       "experiment_name": "L2_dice_only",
       "arch": "pmdfnet",
       "encoder": "tu-convnext_small",
@@ -191,7 +204,22 @@
       "channels2": "3,4,5,6",
       "fusion": "add",
       "in_channels": 7,
-      "loss": "dice"
+      "loss": "dice",
+      "notes": "Intentional loss-ablation override; do not force common.loss here."
+    },
+    {
+      "id": "L3",
+      "group": "ablations",
+      "paper_id": "L3",
+      "experiment_name": "L3_ce_dice",
+      "arch": "pmdfnet",
+      "encoder": "tu-convnext_small",
+      "channels1": "0,1,2",
+      "channels2": "3,4,5,6",
+      "fusion": "add",
+      "in_channels": 7,
+      "loss": "combined",
+      "notes": "Intentional loss-ablation override (combined = CE + Dice as implemented by losses.CombinedLoss). The legacy history of this cell is ambiguous: the number recorded in doc/results.md came from the older protocol (possibly UnetFormerLoss), so this run must be retrained now and must not be reported as interchangeable with it."
     }
   ]
 }

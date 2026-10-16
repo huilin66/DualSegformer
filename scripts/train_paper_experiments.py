@@ -38,7 +38,7 @@ def parse_args(argv=None):
     parser.add_argument(
         "--experiments",
         default="",
-        help="Optional comma-separated experiment IDs to run, e.g. M3,M4,M5.",
+        help="Optional comma-separated experiment IDs to run, e.g. M3,M4,L1.",
     )
     parser.add_argument(
         "--finalize-results",

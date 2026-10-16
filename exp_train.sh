@@ -13,7 +13,7 @@ usage() {
 Usage: bash exp_train.sh [paper_core|paper_ablations|paper_all|vram_smoke|data_smoke|test]
 
 Groups:
-  paper_core       Run M1-M5 with seeds 41/42/43.
+  paper_core       Run M1-M4 with seeds 41/42/43 (CE-only).
   paper_ablations  Run A1/A2/A5/B2/B3/C2 with seeds 41/42/43.
   paper_all        Run paper_core followed by paper_ablations.
   vram_smoke       Run the bounded synthetic VRAM probe.

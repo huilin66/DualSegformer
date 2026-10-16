@@ -38,7 +38,9 @@ pip install -r requirements.txt
 
 ## 论文实验
 
-正式协议位于 `configs/mmlsv2_paper_protocol.json`，包含 M1–M5 和关键消融，固定 seed 为 `41 42 43`。
+正式协议位于 `configs/mmlsv2_paper_protocol.json`，包含 M1–M4 基线与关键消融（A1/A2/A5/B2/B3/C2、L1/L2/L3），固定 seed 为 `41 42 43`。全部配置统一使用 CE-only 训练目标（`common.loss=ce`），仅损失消融 L2/L3 显式覆盖。
+
+论文主模型 M5 即协议中的 **L1**（PMDFNet-Small + CE-only），只训练一次；A3/A4/B1/C1 是对 M4/L1 的展示别名，不单独训练。协议内 `paper_id_map` 记录了论文 ID 与运行 ID 的对应关系。
 
 ```bash
 cd /data/huilin/projects/PMDFNet
