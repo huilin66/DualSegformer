@@ -2,8 +2,9 @@
 set -eu
 
 # Group: all -- core + ablations + extended, sequentially.
-# 10 core baselines (M1-M4, M6-M11) + 9 ablations (A1 A2 A5 B2 B3 C2 L1 L2 L3)
-# = 19 experiments x 3 seeds = 57 formal runs.
+# The three groups are disjoint (core = M1-M4, extended = M6-M11, ablations =
+# A1 A2 A5 B2 B3 C2 L1 L2 L3), so each experiment is trained exactly once:
+# 19 experiments x 3 seeds = 57 formal runs.
 #
 # Sequential on purpose: the paper protocol is deterministic and these runs are
 # meant to share one GPU. For a one-shot process use GROUP=all instead:

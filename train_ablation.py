@@ -72,24 +72,21 @@ DEFAULTS = {
 }
 
 
-# E1 extended baseline suite. These experiments carry ``group: core`` in the
-# protocol (they belong to the main comparison table), but ``extended`` is
-# accepted as a virtual group so they can be launched, probed and evaluated on
-# their own. Keep this list in sync with the protocol's ``core`` experiments.
-EXTENDED_EXPERIMENT_IDS = frozenset({"M6", "M7", "M8", "M9", "M10", "M11"})
+# Experiment groups accepted by the training entry points. ``core``, ``ablations``
+# and ``extended`` are disjoint and stored per experiment in the protocol, so
+# running the three groups covers every experiment exactly once (19 x 3 = 57
+# runs). Keep this tuple in sync with the protocol's ``groups`` list.
 EXPERIMENT_GROUPS = ("core", "ablations", "extended", "all")
 
 
 def experiment_in_group(experiment, group):
     """Return True when ``experiment`` (a protocol entry) belongs to ``group``.
 
-    ``extended`` is a virtual selection over the E1 extended baselines rather
-    than a stored ``group`` value, so it must be resolved by experiment id.
+    Single source of truth for the trainer, the VRAM probe and the launcher
+    scripts, so they can never disagree about which runs a group contains.
     """
     if group == "all":
         return True
-    if group == "extended":
-        return str(experiment.get("id", "")) in EXTENDED_EXPERIMENT_IDS
     groups = experiment.get("group", "core")
     if isinstance(groups, str):
         groups = [groups]

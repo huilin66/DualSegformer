@@ -1,7 +1,7 @@
 {
   "project_name": "PMDFNet",
   "project_full_name": "Physically Motivated Dual-Stream Fusion for Multimodal Landslide Segmentation",
-  "protocol_version": "pmdfnet_mmlsv2_remote_sensing_v4_ce_only_extended_baselines",
+  "protocol_version": "pmdfnet_mmlsv2_remote_sensing_v5_ce_only_groups_split",
   "description": "Paper protocol for PMDFNet on converted MMLSv2. The paper's frozen training objective is CE-only, so common.loss is ce: every baseline (M1-M11) and every reported ablation must use the same objective as the main model. Only the loss ablation family (L2 dice, L3 combined) overrides the loss. The mapped data preserve the competition-like 7-channel Mars representation; the fixed MARS training-protocol mean/std is applied unchanged to validation/test.",
   "seeds": [
     41,
@@ -10,7 +10,8 @@
   ],
   "groups": [
     "core",
-    "ablations"
+    "ablations",
+    "extended"
   ],
   "paper_id_map": {
     "M1": "M1",
@@ -38,7 +39,7 @@
     "M10": "M10",
     "M11": "M11"
   },
-  "paper_id_map_notes": "Paper-facing experiment ID to protocol run ID. The paper's main model M5 is the L1 configuration (PMDFNet-Small + CE-only, channels 0,1,2 vs 3,4,5,6, Add fusion); it is trained exactly once as L1. A3/A4/B1/C1 are display aliases over M4/L1 and must not be trained again.",
+  "paper_id_map_notes": "Paper-facing experiment ID to protocol run ID. The paper's main model M5 is the L1 configuration (PMDFNet-Small + CE-only, channels 0,1,2 vs 3,4,5,6, Add fusion); it is trained exactly once as L1. A3/A4/B1/C1 are display aliases over M4/L1 and must not be trained again. Stored groups are disjoint: core = M1-M4, extended = M6-M11, ablations = the rest, so running the three groups covers each experiment exactly once.",
   "common": {
     "data_root": "",
     "train_split": "train",
@@ -248,7 +249,7 @@
     },
     {
       "id": "M6",
-      "group": "core",
+      "group": "extended",
       "paper_id": "M6",
       "experiment_name": "M6_upernet_resnet50_ce",
       "arch": "upernet",
@@ -258,7 +259,7 @@
     },
     {
       "id": "M7",
-      "group": "core",
+      "group": "extended",
       "paper_id": "M7",
       "experiment_name": "M7_fpn_resnet50_ce",
       "arch": "fpn",
@@ -268,7 +269,7 @@
     },
     {
       "id": "M8",
-      "group": "core",
+      "group": "extended",
       "paper_id": "M8",
       "experiment_name": "M8_manet_resnet50_ce",
       "arch": "manet",
@@ -278,7 +279,7 @@
     },
     {
       "id": "M9",
-      "group": "core",
+      "group": "extended",
       "paper_id": "M9",
       "experiment_name": "M9_unetplusplus_resnet50_ce",
       "arch": "unetplusplus",
@@ -288,7 +289,7 @@
     },
     {
       "id": "M10",
-      "group": "core",
+      "group": "extended",
       "paper_id": "M10",
       "experiment_name": "M10_ocrnet_hrnet18_ce",
       "arch": "ocrnet",
@@ -298,7 +299,7 @@
     },
     {
       "id": "M11",
-      "group": "core",
+      "group": "extended",
       "paper_id": "M11",
       "experiment_name": "M11_m3lsnet_ce",
       "model_name": "m3lsnet",

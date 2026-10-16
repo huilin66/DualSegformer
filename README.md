@@ -70,25 +70,27 @@ PY
 ```
 
 ```bash
-cd /data/huilin/projects/PMDFNet
-DATA_ROOT=/data/huilin/scrinvme/huilin/bdd/cp_data/mmlsv2_mapped_mars_ls \
-  GROUP=core BATCH_SIZE=32 sh scripts/train_paper_experiments.sh
+DATA_ROOT=/path/to/mmlsv2_mapped_mars_ls bash scripts/run_core.sh       # M1-M4
+DATA_ROOT=/path/to/mmlsv2_mapped_mars_ls bash scripts/run_ablations.sh  # 消融 + L1/L2/L3
+DATA_ROOT=/path/to/mmlsv2_mapped_mars_ls bash scripts/run_extended.sh   # M6-M11
 ```
 
-关键消融：
+`DATA_ROOT` 必须显式提供（脚本不再内置远程主机路径，也不再与评估脚本的默认值冲突）；
+也可以用 `MARS_DATA_ROOT` / `MAPPED_DATA_ROOT` / `MMLSV2_DATA_ROOT` 或仓库根目录的 `.env` 提供。
+三个分组互斥，因此下面这条会**恰好训练 57 个 run**（19 个实验 × 3 seeds），不会重复：
 
 ```bash
-DATA_ROOT=/data/huilin/scrinvme/huilin/bdd/cp_data/mmlsv2_mapped_mars_ls \
-  GROUP=ablations sh scripts/train_paper_experiments.sh
+DATA_ROOT=/path/to/mmlsv2_mapped_mars_ls bash scripts/run_all.sh
 ```
 
 运行期间的暂存结果位于 `outputs_experiments/pmdfnet_mmlsv2`；完成后复制到数据集根目录的 `outputs/`。正式配置默认只保存 `best.pth` 和 `last.pth`，其中 `best.pth` 按验证集 global mIoU 选择。
 
-也可以使用总入口：
+也可以用总入口：
 
 ```bash
 bash exp_train.sh paper_core
 bash exp_train.sh paper_ablations
+bash exp_train.sh paper_extended
 bash exp_train.sh paper_all
 ```
 

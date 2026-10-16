@@ -40,8 +40,7 @@ def parse_args(argv=None):
         default="all",
         help=(
             "Protocol group to probe; all probes every listed experiment. "
-            "'extended' is a virtual group covering the E1 extended baselines "
-            "(M6-M11), which are stored with group 'core'."
+            "The groups core, ablations and extended are disjoint."
         ),
     )
     parser.add_argument("--device", default="cuda:0")

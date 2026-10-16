@@ -29,8 +29,7 @@ def parse_args(argv=None):
         choices=["core", "ablations", "extended", "all"],
         help=(
             "Experiment group to run; all includes every group in the JSON. "
-            "'extended' is a virtual group covering the E1 extended baselines "
-            "(M6-M11), which are stored with group 'core'."
+            "The groups core, ablations and extended are disjoint."
         ),
     )
     parser.add_argument("--seed", required=True, type=int, help="One reproducibility seed.")

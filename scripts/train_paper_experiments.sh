@@ -10,7 +10,13 @@ cd "${REPO_ROOT}"
 
 PYTHON_BIN=${PYTHON_BIN:-python}
 CONFIG=${CONFIG:-configs/mmlsv2_paper_protocol.json}
-DATA_ROOT=${DATA_ROOT:-${MARS_DATA_ROOT:-${MAPPED_DATA_ROOT:-/data/huilin/scrinvme/huilin/bdd/cp_data/mmlsv2_mapped_mars_ls}}}
+# Same resolution order as the trainer and tools/evaluation (and .env), minus the
+# old baked-in host path that disagreed with the evaluation scripts.
+DATA_ROOT=${DATA_ROOT:-${MARS_DATA_ROOT:-${MAPPED_DATA_ROOT:-${MMLSV2_DATA_ROOT:-}}}}
+if [ -z "${DATA_ROOT}" ]; then
+  echo "DATA_ROOT is not set. Export DATA_ROOT (or MARS_DATA_ROOT/MAPPED_DATA_ROOT/MMLSV2_DATA_ROOT) to the mapped MMLSv2 root." >&2
+  exit 1
+fi
 DEVICE=${DEVICE:-cuda:0}
 GROUP=${GROUP:-core}
 SEEDS=${SEEDS:-"41 42 43"}

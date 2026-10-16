@@ -12,9 +12,10 @@
 | `run_extended.sh` | extended | M6 UPerNet、M7 FPN、M8 MANet、M9 U-Net++、M10 OCRNet+HRNet18、M11 M3LSNet | 18 |
 | `run_all.sh` | all | 上述三组顺序执行 | 57 |
 
-`extended` 是**虚拟分组**：M6–M11 在协议里存的是 `group: core`（它们属于 E1 主表），
-但可以通过 `--group extended` 单独启动。该选择逻辑只有一处实现
-（`train_ablation.experiment_in_group`），训练器、显存探针和汇总脚本共用。
+三个分组**互斥且并集完整**（`core` = M1–M4、`extended` = M6–M11、`ablations` = 其余），
+分组是协议里每个实验显式存储的 `group` 字段。因此 `run_all.sh` 会让每个实验**恰好训练一次**，共 19 × 3 = 57 个 run。
+
+分组选择逻辑只有一处实现（`train_ablation.experiment_in_group`），训练器、显存探针和启动脚本共用，三者不会对"某个组包含哪些实验"产生分歧。
 
 `run_all.sh` 按组顺序执行；若想用单进程跑完所有组，用 `GROUP=all bash scripts/train_paper_experiments.sh`。
 
@@ -75,4 +76,6 @@ DATA_ROOT=/data/.../mmlsv2_mapped_mars_ls bash scripts/run_test_eval.sh
 - `L1` 同时是论文主模型 M5，以及 A4/B1/C1 的来源，**只训练一次**，在 `run_ablations.sh` 里。
 - `EXPERIMENTS` 只在所选组内过滤；给某个组传别组的 id 会被训练器拒绝并报错。
 - 正式运行集为 **57** 个 run；`run_test_eval.sh` 会校验该数量（可用 `EXPECTED_RUNS` 下调）。
+  该脚本按 `RUN_ROOT` 锚定匹配，`_backup_*`、`_archive*`、`_old*`、隐藏目录以及形如 `<run>_s41_..._DEBUG` 的手工副本都会被排除，不会混入统计。
 - CE-only 重跑的实验名带 `_ce` 后缀，与旧 combined-loss 的历史 run 目录区分，两代不得混用。
+- `DATA_ROOT` 必须显式提供：训练与评估脚本都不再内置远程主机路径（此前训练默认 `/data/huilin/...`、评估默认 `/scrinvme/...`，两者不一致）。可用 `DATA_ROOT` / `MARS_DATA_ROOT` / `MAPPED_DATA_ROOT` / `MMLSV2_DATA_ROOT` 或 `.env` 提供。

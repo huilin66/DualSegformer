@@ -9,7 +9,12 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
 PYTHON_BIN="${PYTHON_BIN:-python}"
-DATA_ROOT="${MARS_DATA_ROOT:-${DATA_ROOT:-/scrinvme/huilin/bdd/cp_data/mmlsv2_mapped_mars_ls}}"
+# Same resolution order as the trainer (and .env); no baked-in host path.
+DATA_ROOT="${DATA_ROOT:-${MARS_DATA_ROOT:-${MAPPED_DATA_ROOT:-${MMLSV2_DATA_ROOT:-}}}}"
+if [ -z "${DATA_ROOT}" ]; then
+  echo "DATA_ROOT is not set. Export DATA_ROOT (or MARS_DATA_ROOT/MAPPED_DATA_ROOT/MMLSV2_DATA_ROOT) to the mapped MMLSv2 root." >&2
+  exit 1
+fi
 DEVICE="${DEVICE:-${TRAIN_DEVICE:-cuda:0}}"
 MODEL_NAME="${MODEL_NAME:-dual_segformer_convnextsmall_chv1_add}"
 BATCH_SIZE="${BATCH_SIZE:-16}"

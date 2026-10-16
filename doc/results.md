@@ -133,8 +133,8 @@ Test 评价共覆盖 `133` 张图像，每个运行使用 batch size `32`、共 
 
 | ID | 方法 | Val best mIoU | Test mIoU | Test IoU-FG | Test IoU-BG | Test F1 | 当前状态 |
 |---|---|---:|---:|---:|---:|---:|---|
-| M1 | U-Net + ResNeSt50d | — | — | — | — | — | 待 CE-only 重跑 |
-| M2 | DeepLabV3+ ResNeSt50d | — | — | — | — | — | 待 CE-only 重跑 |
+| M1 | U-Net + ResNet50 | — | — | — | — | — | 待 CE-only 重跑 |
+| M2 | DeepLabV3+ ResNet50 | — | — | — | — | — | 待 CE-only 重跑 |
 | M3 | SegFormer MiT-B2 | — | — | — | — | — | 待 CE-only 重跑 |
 | M4 | 单流 ConvNeXt-Small + MLP | — | — | — | — | — | 待 CE-only 重跑 |
 | M6 | UPerNet + ResNet50 | — | — | — | — | — | 待 CE-only 重跑（新增） |
@@ -147,9 +147,11 @@ Test 评价共覆盖 `133` 张图像，每个运行使用 batch size `32`、共 
 
 新增基线的口径细节：
 
-- M6–M9 使用编码器 `tu-resnet50`（timm `resnet50` + ImageNet 权重）；M10 走 `networks.OCRNet.SMP_OCRNet`（HRNet-OCR 结构，`tu-hrnet_w18`），训练时带辅助头，`forward_loss` 按 `loss_main + 0.4 * loss_aux` 计算；M11 走 `networks.get_model`，`pretrain=false`（M3LSNet 无 ImageNet 权重）。
+- backbone 统一为 ResNet50：M1/M2 与 M6–M9 都是 ResNet50，但走不同的编码器入口——M1/M2 是 `resnet50`（`train_ablation.plain_model` 直接传给 SMP，由 SMP 的 resnet 编码器加载 torchvision 权重），M6–M9 是 `tu-resnet50`（SMP 的 timm universal 编码器）。两者骨干与通道配置相同，但预训练权重由不同代码路径加载；正式训练前建议先核对两组编码器的预训练权重来源，或在论文中明确说明该差异。
+- M9 是 U-Net++；仓库另有一个历史键 `unetplusplus_resnest50`（ResNeSt50d），两者不是同一个模型，不要混用。
+- M10 走 `networks.OCRNet.SMP_OCRNet`（HRNet-OCR 结构，`tu-hrnet_w18`），训练时带辅助头，`forward_loss` 按 `loss_main + 0.4 * loss_aux` 计算。
+- M11 走 `networks.get_model`（`model_name=m3lsnet`），`pretrain=false`（M3LSNet 无 ImageNet 权重）。
 - M11 的结果依赖 `mamba_ssm` 是否可导入：可导入时使用 selective-scan 核心，否则使用内置 gated-conv 模拟器。必须记录报告所用的路径。
-- M1–M4 的显示名此前写作 "ResNet50"，但其实际编码器是 `timm-resnest50d`（ResNeSt50d），与新增的 M6–M9 并非同一骨干。上表已按实际编码器标注；如需统一为真正的 ResNet50，需把 M1–M4 的 encoder 一并改为 `tu-resnet50` 后重跑。
 - M6–M11 的 Params/GFLOPs 尚未实测（见 E6.2）。
 
 ### E1.1 损失函数消融（本轮保留的唯一数值结果）
@@ -204,7 +206,7 @@ A5 是当前最关键的单点风险：若 A5（约 88.33M）在 CE-only 下达�
 
 | ID | 变量 | Test mIoU | Test IoU-FG | Test F1 | 当前状态 |
 |---|---|---:|---:|---:|---|
-| C1 | Add Fusion（复用 L1） | 0.8594 ± 0.0034 | 0.8166 ± 0.0041 | 0.8990 ± 0.0025 | 复用 L1 |
+| C1 | Add Fusion（复用 L1） | — | — | — | 显示别名 = L1，数值见 E1.1 |
 | C2 | Concat + 1×1 Conv | — | — | — | 已重置，待 CE-only 重跑 |
 | L1 | CE only | **0.8594 ± 0.0034** | **0.8166 ± 0.0041** | **0.8990 ± 0.0025** | 保留 |
 | L2 | Dice only | 0.8323 ± 0.0054 | 0.7812 ± 0.0099 | 0.8771 ± 0.0062 | 保留 |
@@ -310,7 +312,8 @@ A1/A2/A5/B2/B3/C2 的 smoke test 也已通过；其中 A5 约 `88.33M`，C2 约 
 
 ### 协议配置状态
 
-- 协议版本：`pmdfnet_mmlsv2_remote_sensing_v4_ce_only_extended_baselines`；`common.loss = "ce"`，`batch_size = 32`。
+- 协议版本：`pmdfnet_mmlsv2_remote_sensing_v5_ce_only_groups_split`；`common.loss = "ce"`，`batch_size = 32`。
+- 分组互斥：`core` = M1–M4、`extended` = M6–M11、`ablations` = A1/A2/A5/B2/B3/C2/L1/L2/L3。三组并集即全部 19 个实验，因此逐组运行（`scripts/run_all.sh`）不会重复训练任何配置。
 - 统一口径：M1–M11 基线与全部消融均继承 `common.loss = ce`；仅损失消融 L2（`dice`）与 L3（`combined`）显式覆盖。
 - M5：协议中已不再保留独立 M5 条目，M5 由 L1 承担（`paper_id` 映射：`M5 → L1`）；A3/A4/B1/C1 同为展示别名（`M4` / `L1`），不单独训练。
 - 协议新增 `paper_id`（逐实验）与 `paper_id_map`（论文 ID → 运行 ID）两级映射，便于汇总脚本与论文表格对齐。
