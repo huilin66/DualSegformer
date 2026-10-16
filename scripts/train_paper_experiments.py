@@ -27,7 +27,11 @@ def parse_args(argv=None):
         "--group",
         default="core",
         choices=["core", "ablations", "extended", "all"],
-        help="Experiment group to run; all includes every group in the JSON.",
+        help=(
+            "Experiment group to run; all includes every group in the JSON. "
+            "'extended' is a virtual group covering the E1 extended baselines "
+            "(M6-M11), which are stored with group 'core'."
+        ),
     )
     parser.add_argument("--seed", required=True, type=int, help="One reproducibility seed.")
     parser.add_argument("--data-root", default="", help="Override the protocol data root.")
@@ -63,15 +67,6 @@ def load_protocol(path):
     if not isinstance(protocol.get("common", {}), dict):
         raise ValueError("Protocol common section must be a JSON object")
     return protocol
-
-
-def experiment_in_group(experiment, group):
-    if group == "all":
-        return True
-    groups = experiment.get("group", "core")
-    if isinstance(groups, str):
-        groups = [groups]
-    return group in groups
 
 
 def build_config(protocol, experiment, args):
@@ -117,7 +112,7 @@ def main(argv=None):
     group_selected = [
         experiment
         for experiment in protocol["experiments"]
-        if experiment_in_group(experiment, args.group)
+        if train_ablation.experiment_in_group(experiment, args.group)
     ]
     if not group_selected:
         raise ValueError(f"No experiments found for group: {args.group}")

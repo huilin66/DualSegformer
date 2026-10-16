@@ -72,6 +72,30 @@ DEFAULTS = {
 }
 
 
+# E1 extended baseline suite. These experiments carry ``group: core`` in the
+# protocol (they belong to the main comparison table), but ``extended`` is
+# accepted as a virtual group so they can be launched, probed and evaluated on
+# their own. Keep this list in sync with the protocol's ``core`` experiments.
+EXTENDED_EXPERIMENT_IDS = frozenset({"M6", "M7", "M8", "M9", "M10", "M11"})
+EXPERIMENT_GROUPS = ("core", "ablations", "extended", "all")
+
+
+def experiment_in_group(experiment, group):
+    """Return True when ``experiment`` (a protocol entry) belongs to ``group``.
+
+    ``extended`` is a virtual selection over the E1 extended baselines rather
+    than a stored ``group`` value, so it must be resolved by experiment id.
+    """
+    if group == "all":
+        return True
+    if group == "extended":
+        return str(experiment.get("id", "")) in EXTENDED_EXPERIMENT_IDS
+    groups = experiment.get("group", "core")
+    if isinstance(groups, str):
+        groups = [groups]
+    return group in groups
+
+
 def str2bool(value):
     if isinstance(value, bool):
         return value

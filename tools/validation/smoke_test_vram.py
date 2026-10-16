@@ -38,7 +38,11 @@ def parse_args(argv=None):
         "--group",
         choices=["core", "ablations", "extended", "all"],
         default="all",
-        help="Protocol group to probe; all probes every listed experiment.",
+        help=(
+            "Protocol group to probe; all probes every listed experiment. "
+            "'extended' is a virtual group covering the E1 extended baselines "
+            "(M6-M11), which are stored with group 'core'."
+        ),
     )
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument(
@@ -72,12 +76,9 @@ def load_protocol(path: Path) -> dict:
 
 
 def in_group(experiment: dict, group: str) -> bool:
-    if group == "all":
-        return True
-    groups = experiment.get("group", "core")
-    if isinstance(groups, str):
-        groups = [groups]
-    return group in groups
+    # Single source of truth lives in train_ablation so the trainer, this probe
+    # and the group launcher scripts always agree on what a group contains.
+    return train_ablation.experiment_in_group(experiment, group)
 
 
 def build_smoke_config(protocol: dict, experiment: dict, args) -> train_ablation.RunConfig:
