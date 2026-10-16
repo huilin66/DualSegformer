@@ -1,7 +1,7 @@
 {
   "project_name": "PMDFNet",
   "project_full_name": "Physically Motivated Dual-Stream Fusion for Multimodal Landslide Segmentation",
-  "protocol_version": "pmdfnet_mmlsv2_remote_sensing_v2",
+  "protocol_version": "pmdfnet_mmlsv2_remote_sensing_v2_ce_rerun",
   "description": "Paper-grade first-round protocol for PMDFNet on converted MMLSv2. The mapped data preserve the competition-like 7-channel Mars representation; the fixed MARS training-protocol mean/std is applied unchanged to validation/test.",
   "seeds": [41, 42, 43],
   "groups": ["core", "ablations"],
@@ -93,74 +93,81 @@
     {
       "id": "M5",
       "group": "core",
-      "experiment_name": "M5_pmdfnet_small",
+      "experiment_name": "M5_pmdfnet_small_ce",
       "arch": "pmdfnet",
       "encoder": "tu-convnext_small",
       "channels1": "0,1,2",
       "channels2": "3,4,5,6",
       "fusion": "add",
-      "in_channels": 7
+      "in_channels": 7,
+      "loss": "ce"
     },
     {
       "id": "A1",
       "group": "ablations",
-      "experiment_name": "A1_optical_only_single_small",
+      "experiment_name": "A1_optical_only_single_small_ce",
       "arch": "segformer",
       "encoder": "tu-convnext_small",
       "input_channels": "3,4,5,6",
-      "in_channels": 4
+      "in_channels": 4,
+      "loss": "ce"
     },
     {
       "id": "A2",
       "group": "ablations",
-      "experiment_name": "A2_physical_only_single_small",
+      "experiment_name": "A2_physical_only_single_small_ce",
       "arch": "segformer",
       "encoder": "tu-convnext_small",
       "input_channels": "0,1,2",
-      "in_channels": 3
+      "in_channels": 3,
+      "loss": "ce"
     },
     {
       "id": "A5",
       "group": "ablations",
-      "experiment_name": "A5_approx_capacity_control_convnext_base",
+      "experiment_name": "A5_approx_capacity_control_convnext_base_ce",
       "arch": "segformer",
       "encoder": "tu-convnext_base",
       "input_channels": "0,1,2,3,4,5,6",
       "in_channels": 7,
+      "loss": "ce",
       "notes": "近似容量对照：单流 ConvNeXt-Base + MLP Decoder；最终以实测 Params/GFLOPs 报告容量偏差。"
     },
     {
       "id": "B2",
       "group": "ablations",
-      "experiment_name": "B2_group_rgb_vs_physical_grayscale",
+      "experiment_name": "B2_group_rgb_vs_physical_grayscale_ce",
       "arch": "pmdfnet",
       "encoder": "tu-convnext_small",
       "channels1": "4,5,6",
       "channels2": "0,1,2,3",
       "fusion": "add",
-      "in_channels": 7
+      "in_channels": 7,
+      "loss": "ce"
     },
     {
       "id": "B3",
       "group": "ablations",
-      "experiment_name": "B3_mixed_channel_grouping",
+      "experiment_name": "B3_mixed_channel_grouping_ce",
       "arch": "pmdfnet",
       "encoder": "tu-convnext_small",
       "channels1": "0,2,3",
       "channels2": "1,4,5,6",
       "fusion": "add",
-      "in_channels": 7
+      "in_channels": 7,
+      "loss": "ce"
     },
     {
       "id": "C2",
       "group": "ablations",
-      "experiment_name": "C2_concat_fusion",
+      "experiment_name": "C2_concat_fusion_ce",
       "arch": "pmdfnet",
       "encoder": "tu-convnext_small",
       "channels1": "0,1,2",
       "channels2": "3,4,5,6",
       "fusion": "cat",
-      "in_channels": 7
+      "in_channels": 7,
+      "loss": "ce"
     },
     {
       "id": "L1",
