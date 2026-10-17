@@ -87,7 +87,7 @@
     "dataset_type": "mars_ls",
     "use_file_list_dataset": true,
     "save_auxiliary_checkpoints": false,
-    "finalize_results": true,
+    "finalize_results": false,
     "final_output_dir": "",
     "dry_run": false,
     "skip_model_init": false

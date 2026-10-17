@@ -47,7 +47,7 @@ def parse_args(argv=None):
         "--finalize-results",
         type=train_ablation.str2bool,
         default=None,
-        help="Override whether to copy each completed run to the dataset outputs directory.",
+        help="Explicitly override whether to copy each completed run to the dataset outputs directory.",
     )
     parser.add_argument("--dry-run", action="store_true", help="Build/check data and exit before training.")
     parser.add_argument(

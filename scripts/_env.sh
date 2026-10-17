@@ -27,12 +27,14 @@ PYTHON_BIN="${PYTHON_BIN:-python}"
 CONFIG="${CONFIG:-configs/mmlsv2_paper_protocol.json}"
 BATCH_SIZE="${BATCH_SIZE:-}"
 EXPERIMENTS="${EXPERIMENTS:-}"
-FINALIZE_RESULTS="${FINALIZE_RESULTS:-}"
+# Training results stay in the project output tree by default. Result copying
+# to the dataset filesystem is an explicit opt-in for legacy workflows only.
+FINALIZE_RESULTS="${FINALIZE_RESULTS:-0}"
 DRY_RUN="${DRY_RUN:-0}"
 SKIP_MODEL_INIT="${SKIP_MODEL_INIT:-0}"
 STRICT_DETERMINISM="${STRICT_DETERMINISM:-1}"
 
-export PYTHON_BIN CONFIG DEVICE SEEDS NUM_WORKERS STRICT_DETERMINISM
+export PYTHON_BIN CONFIG DEVICE SEEDS NUM_WORKERS STRICT_DETERMINISM FINALIZE_RESULTS
 export PYTHONUNBUFFERED=1
 
 if [ -n "${BATCH_SIZE}" ]; then
@@ -40,9 +42,6 @@ if [ -n "${BATCH_SIZE}" ]; then
 fi
 if [ -n "${EXPERIMENTS}" ]; then
   export EXPERIMENTS
-fi
-if [ -n "${FINALIZE_RESULTS}" ]; then
-  export FINALIZE_RESULTS
 fi
 if [ "${DRY_RUN}" != "0" ]; then
   export DRY_RUN

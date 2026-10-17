@@ -230,12 +230,12 @@ def build_parser(defaults=None):
         "--finalize-results",
         type=str2bool,
         default=defaults["finalize_results"],
-        help="Copy a completed run to final_output_dir or <data_root>/outputs.",
+        help="Explicitly copy a completed run to final_output_dir or <data_root>/outputs.",
     )
     parser.add_argument(
         "--final-output-dir",
         default=defaults["final_output_dir"],
-        help="Final archive root; empty means <data_root>/outputs when finalize-results is enabled.",
+        help="Optional copy destination; empty means <data_root>/outputs when finalize-results is explicitly enabled.",
     )
     parser.add_argument("--dry-run", action="store_true", default=defaults["dry_run"])
     parser.add_argument(
@@ -370,7 +370,7 @@ def save_run_metadata(cfg, run_dir):
 
 
 def finalize_run_results(cfg, run_dir):
-    """Archive a completed run under the dataset output directory when requested."""
+    """Copy a completed run only when explicitly requested by the config/CLI."""
     if not cfg.finalize_results:
         return ""
     if not cfg.data_root:
@@ -1411,7 +1411,7 @@ def run_experiment(cfg):
         logger.info("Appended run summary: %s", cfg.summary_csv)
     final_dir = finalize_run_results(cfg, run_dir)
     if final_dir:
-        logger.info("Archived completed run to dataset outputs: %s", final_dir)
+        logger.info("Copied completed run to dataset outputs: %s", final_dir)
     return run_dir
 
 
