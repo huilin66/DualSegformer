@@ -31,9 +31,20 @@ import sys
 from pathlib import Path
 from typing import Iterable
 
+# OpenCV does not interpret several GeoTIFF metadata tags used by the source
+# files.  Keep those non-fatal TIFF warnings quiet unless the caller chose a
+# different OpenCV log level explicitly.
+os.environ.setdefault("OPENCV_LOG_LEVEL", "ERROR")
+
 import cv2
 import numpy as np
 import tifffile
+
+try:
+    from tqdm import tqdm
+except ImportError:  # pragma: no cover - requirements.txt includes tqdm
+    def tqdm(iterable, **_kwargs):
+        return iterable
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -186,7 +197,11 @@ def map_dataset(
         mask_compared = 0
         image_count = 0
 
-        for source_image_path in image_paths:
+        for source_image_path in tqdm(
+            image_paths,
+            desc=f"Map {split}",
+            unit="image",
+        ):
             name = source_image_path.name
             mapped = map_image(read_image(source_image_path))
 
