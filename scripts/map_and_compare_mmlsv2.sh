@@ -10,9 +10,12 @@ set -euo pipefail
 # Optional overrides:
 #   PYTHON_BIN=python
 #   SPLITS="train val test"
-#   ATOL=0.001
+#   ATOL=1e-3
 #   OVERWRITE=1
 #   IGNORE_MASKS=1
+#
+# Compare only, without running the mapping step:
+#   bash scripts/map_and_compare_mmlsv2.sh --compare-only
 
 SCRIPT_DIR="$(CDPATH= cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(CDPATH= cd "${SCRIPT_DIR}/.." && pwd)"
@@ -22,9 +25,58 @@ cd "${REPO_ROOT}"
 
 PYTHON_BIN="${PYTHON_BIN:-python}"
 SPLITS="${SPLITS:-train val test}"
-ATOL="${ATOL:-0.001}"
+ATOL="${ATOL:-1e-3}"
 OVERWRITE="${OVERWRITE:-0}"
 IGNORE_MASKS="${IGNORE_MASKS:-0}"
+COMPARE_ONLY="${COMPARE_ONLY:-0}"
+
+usage() {
+  cat <<'EOF'
+Usage: bash scripts/map_and_compare_mmlsv2.sh [options]
+
+Options:
+  --compare-only       Skip mapping and compare existing MMLSV2_DATA_ROOT only.
+  --overwrite          Allow the mapping step to overwrite existing TIFF files.
+  --ignore-masks       Compare images only.
+  --atol VALUE         Pixel absolute tolerance; default is 1e-3.
+  -h, --help           Show this help.
+
+Environment overrides:
+  SPLITS="train val test"  PYTHON_BIN=python  OVERWRITE=1  IGNORE_MASKS=1
+EOF
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --compare-only)
+      COMPARE_ONLY=1
+      ;;
+    --overwrite)
+      OVERWRITE=1
+      ;;
+    --ignore-masks)
+      IGNORE_MASKS=1
+      ;;
+    --atol)
+      if [ "$#" -lt 2 ]; then
+        echo "--atol requires a value" >&2
+        exit 2
+      fi
+      ATOL="$2"
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
 
 # OpenCV emits warnings for GeoTIFF metadata tags that it does not interpret.
 # They do not affect the pixel data used by this mapping workflow.
@@ -71,9 +123,17 @@ fi
 echo "[map] source=${MMLSV2_SRC_DATA_ROOT}"
 echo "[map] output=${MMLSV2_DATA_ROOT}"
 echo "[map] reference=${MARS_LSC_ROOT}"
-echo "[map] splits=${SPLITS} overwrite=${OVERWRITE}"
+echo "[map] splits=${SPLITS} overwrite=${OVERWRITE} compare_only=${COMPARE_ONLY}"
 
-"${PYTHON_BIN}" tools/data/map_mmlsv2_to_mars.py "${MAP_ARGS[@]}"
+if [ "${COMPARE_ONLY}" = "1" ] || [ "${COMPARE_ONLY}" = "true" ] || [ "${COMPARE_ONLY}" = "TRUE" ]; then
+  if [ ! -d "${MMLSV2_DATA_ROOT}" ]; then
+    echo "Mapped dataset does not exist: ${MMLSV2_DATA_ROOT}" >&2
+    exit 1
+  fi
+  echo "[compare] skipping mapping step"
+else
+  "${PYTHON_BIN}" tools/data/map_mmlsv2_to_mars.py "${MAP_ARGS[@]}"
+fi
 
 # The mapping tool above performs the conversion.  The following small Python
 # block compares the materialized output with the reference TIFF files.
@@ -93,6 +153,7 @@ reference_root = Path(sys.argv[2]).resolve()
 atol = float(sys.argv[3])
 ignore_masks = sys.argv[4].strip().lower() in {"1", "true", "yes", "on"}
 splits = sys.argv[5:]
+BAND_NAMES = ["Thermal", "Slope", "DEM", "Grayscale", "R", "G", "B"]
 
 if atol < 0:
     raise SystemExit("ATOL must be non-negative")
@@ -108,6 +169,97 @@ def tif_files(directory: Path) -> dict[str, Path]:
     return result
 
 
+def as_bands(array):
+    """Return seven bands in HxW form for either HxWx7 or 7xHxW TIFFs."""
+
+    array = np.asarray(array)
+    if array.ndim != 3:
+        return None
+    if array.shape[-1] == len(BAND_NAMES):
+        return [array[..., index] for index in range(len(BAND_NAMES))]
+    if array.shape[0] == len(BAND_NAMES):
+        return [array[index, ...] for index in range(len(BAND_NAMES))]
+    return None
+
+
+def new_band_stats():
+    return [
+        {
+            "index": index,
+            "name": name,
+            "compared_files": 0,
+            "shape_mismatch_files": 0,
+            "total_values": 0,
+            "exact_values": 0,
+            "within_atol_values": 0,
+            "absolute_error_sum": 0.0,
+            "max_absolute_error": None,
+        }
+        for index, name in enumerate(BAND_NAMES)
+    ]
+
+
+def update_band_stats(stats, left, right, tolerance):
+    left_bands = as_bands(left)
+    right_bands = as_bands(right)
+    if left_bands is None or right_bands is None:
+        return
+
+    for index, (left_band, right_band) in enumerate(zip(left_bands, right_bands)):
+        item = stats[index]
+        item["compared_files"] += 1
+        if left_band.shape != right_band.shape:
+            item["shape_mismatch_files"] += 1
+            continue
+
+        diff = np.abs(left_band.astype(np.float64) - right_band.astype(np.float64))
+        item["total_values"] += int(diff.size)
+        item["exact_values"] += int(np.count_nonzero(diff == 0))
+        item["within_atol_values"] += int(np.count_nonzero(diff <= tolerance))
+        item["absolute_error_sum"] += float(diff.sum())
+        max_error = float(np.max(diff)) if diff.size else 0.0
+        if item["max_absolute_error"] is None:
+            item["max_absolute_error"] = max_error
+        else:
+            item["max_absolute_error"] = max(item["max_absolute_error"], max_error)
+
+
+def finalize_band_stats(stats):
+    finalized = []
+    for item in stats:
+        total = item["total_values"]
+        exact_fraction = item["exact_values"] / total if total else 0.0
+        within_fraction = item["within_atol_values"] / total if total else 0.0
+        finalized.append(
+            {
+                "index": item["index"],
+                "name": item["name"],
+                "compared_files": item["compared_files"],
+                "shape_mismatch_files": item["shape_mismatch_files"],
+                "total_values": total,
+                "exact_values": item["exact_values"],
+                "within_atol_values": item["within_atol_values"],
+                "exact_fraction": exact_fraction,
+                "within_atol_fraction": within_fraction,
+                "mean_absolute_error": (
+                    item["absolute_error_sum"] / total if total else None
+                ),
+                "max_absolute_error": item["max_absolute_error"],
+                "exact_match": bool(
+                    total > 0
+                    and item["exact_values"] == total
+                    and item["shape_mismatch_files"] == 0
+                ),
+                "within_atol_match": bool(
+                    total > 0
+                    and item["within_atol_values"] == total
+                    and item["shape_mismatch_files"] == 0
+                ),
+            }
+        )
+    return finalized
+
+
 def compare_file_set(mapped_dir: Path, reference_dir: Path, tolerance: float):
     mapped = tif_files(mapped_dir)
     reference = tif_files(reference_dir)
@@ -120,6 +272,9 @@ def compare_file_set(mapped_dir: Path, reference_dir: Path, tolerance: float):
     mean_errors = []
     max_errors = []
     mismatches = []
+    band_stats = new_band_stats()
+    total_values = 0
+    within_atol_values = 0
 
     for name in tqdm(
         common_names,
@@ -128,6 +283,7 @@ def compare_file_set(mapped_dir: Path, reference_dir: Path, tolerance: float):
     ):
         left = np.asarray(tifffile.imread(str(mapped[name])))
         right = np.asarray(tifffile.imread(str(reference[name])))
+        update_band_stats(band_stats, left, right, tolerance)
         if left.shape != right.shape:
             shape_mismatch += 1
             mismatches.append({
@@ -138,6 +294,8 @@ def compare_file_set(mapped_dir: Path, reference_dir: Path, tolerance: float):
             continue
 
         diff = np.abs(left.astype(np.float64) - right.astype(np.float64))
+        total_values += int(diff.size)
+        within_atol_values += int(np.count_nonzero(diff <= tolerance))
         exact = bool(np.all(diff == 0))
         close = bool(np.all(diff <= tolerance))
         exact_count += int(exact)
@@ -180,9 +338,77 @@ def compare_file_set(mapped_dir: Path, reference_dir: Path, tolerance: float):
             float(np.mean(mean_errors)) if mean_errors else None
         ),
         "max_absolute_error": max(max_errors) if max_errors else None,
+        "total_values": total_values,
+        "within_atol_values": within_atol_values,
+        "pixel_match_percentage": (
+            within_atol_values / total_values * 100.0
+            if total_values
+            else None
+        ),
         "mismatches": mismatches,
+        "per_band": finalize_band_stats(band_stats),
     }
     return report
+
+
+def aggregate_band_stats(split_reports):
+    aggregate = new_band_stats()
+    for split_report in split_reports.values():
+        for item in split_report["images"].get("per_band", []):
+            target = aggregate[item["index"]]
+            target["compared_files"] += item["compared_files"]
+            target["shape_mismatch_files"] += item["shape_mismatch_files"]
+            target["total_values"] += item["total_values"]
+            target["exact_values"] += item["exact_values"]
+            target["within_atol_values"] += item["within_atol_values"]
+            if item["mean_absolute_error"] is not None:
+                target["absolute_error_sum"] += (
+                    item["mean_absolute_error"] * item["total_values"]
+                )
+            if item["max_absolute_error"] is not None:
+                if target["max_absolute_error"] is None:
+                    target["max_absolute_error"] = item["max_absolute_error"]
+                else:
+                    target["max_absolute_error"] = max(
+                        target["max_absolute_error"], item["max_absolute_error"]
+                    )
+    return finalize_band_stats(aggregate)
+
+
+def print_match_table(split_reports, tolerance, ignore_masks):
+    print(f"=== Pixel match percentage (absolute error <= {tolerance:g}) ===")
+    print(
+        f"{'Split':<8}"
+        + "".join(f"{name:>12}" for name in BAND_NAMES)
+        + f"{'Mask':>12}"
+    )
+    print("-" * (8 + 12 * (len(BAND_NAMES) + 1)))
+
+    for split, split_report in split_reports.items():
+        percentages = []
+        for item in split_report["images"].get("per_band", []):
+            total = item["total_values"]
+            percentage = (
+                item["within_atol_values"] / total * 100.0
+                if total
+                else None
+            )
+            percentages.append("N/A" if percentage is None else f"{percentage:.4f}%")
+
+        mask_percentage = None
+        if not ignore_masks and split_report["masks"].get("status") == "checked":
+            mask_percentage = split_report["masks"]["files"].get(
+                "pixel_match_percentage"
+            )
+        percentages.append(
+            "N/A"
+            if mask_percentage is None
+            else f"{mask_percentage:.4f}%"
+        )
+        print(
+            f"{split:<8}"
+            + "".join(f"{percentage:>12}" for percentage in percentages)
+        )
 
 
 split_reports = {}
@@ -220,13 +446,13 @@ for split in splits:
             mask_report = compare_file_set(
                 mapped_root / split / "masks",
                 reference_root / split / "masks",
-                0.0,
+                atol,
             )
             split_report["masks"] = {
                 "status": "checked",
                 "files": mask_report,
             }
-            split_report["masks_match"] = bool(mask_report["exact_match"])
+            split_report["masks_match"] = bool(mask_report["within_atol_match"])
 
     split_report["complete_match"] = bool(
         split_report["images_match"]
@@ -242,6 +468,7 @@ checked_masks = [
 ]
 masks_complete = all(checked_masks) if checked_masks else None
 complete = bool(image_complete and masks_complete is not False)
+per_band = aggregate_band_stats(split_reports)
 
 report = {
     "generated_at": datetime.now().isoformat(timespec="seconds"),
@@ -251,6 +478,7 @@ report = {
     "atol": atol,
     "ignore_masks": ignore_masks,
     "split_reports": split_reports,
+    "per_band": per_band,
     "images_complete_match": image_complete,
     "masks_complete_match": masks_complete,
     "complete_match": complete,
@@ -261,23 +489,7 @@ report_path.write_text(
     json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
 )
 
-print("=== MMLSv2 mapping comparison ===")
-for split, item in split_reports.items():
-    images = item["images"]
-    print(
-        f"[{split}] images: mapped={images['mapped_count']} "
-        f"reference={images['reference_count']} "
-        f"match={item['images_match']}"
-    )
-    masks = item["masks"]
-    if masks["status"] == "checked":
-        print(f"[{split}] masks : match={item['masks_match']}")
-    else:
-        print(f"[{split}] masks : {masks['status']}")
-    print(f"[{split}] complete: {item['complete_match']}")
-print(f"Images completely match: {image_complete}")
-print(f"Masks completely match : {masks_complete}")
-print(f"Dataset completely match: {complete}")
+print_match_table(split_reports, atol, ignore_masks)
 print(f"Report: {report_path}")
 
 raise SystemExit(0 if complete else 2)
