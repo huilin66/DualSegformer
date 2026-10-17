@@ -8,6 +8,8 @@ set -euo pipefail
 REPO_ROOT="$(CDPATH= cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT"
 
+. "${REPO_ROOT}/scripts/_env.sh"
+
 PYTHON_BIN="${PYTHON_BIN:-python}"
 # Same resolution order as the trainer (and .env); no baked-in host path, so a
 # stale default can never silently point the evaluation at the wrong dataset.

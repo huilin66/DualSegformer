@@ -29,7 +29,11 @@
 
 ## 环境变量
 
-`scripts/_env.sh` 被各启动脚本 source，统一解析以下变量（均可 export 覆盖）：
+`scripts/_env.sh` 被各启动脚本 source，并自动加载仓库根目录的 `.env`。`.env`
+中的变量作为默认值，启动命令中已经 export 的变量优先级更高。
+训练、评估、数据 smoke test 和显存 smoke test 都使用同一套解析逻辑。
+
+统一解析以下变量：
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
@@ -78,4 +82,4 @@ DATA_ROOT=/data/.../mmlsv2_mapped_mars_ls bash scripts/run_test_eval.sh
 - 正式运行集为 **57** 个 run；`run_test_eval.sh` 会校验该数量（可用 `EXPECTED_RUNS` 下调）。
   该脚本按 `RUN_ROOT` 锚定匹配，`_backup_*`、`_archive*`、`_old*`、隐藏目录以及形如 `<run>_s41_..._DEBUG` 的手工副本都会被排除，不会混入统计。
 - CE-only 重跑的实验名带 `_ce` 后缀，与旧 combined-loss 的历史 run 目录区分，两代不得混用。
-- `DATA_ROOT` 必须显式提供：训练与评估脚本都不再内置远程主机路径（此前训练默认 `/data/huilin/...`、评估默认 `/scrinvme/...`，两者不一致）。可用 `DATA_ROOT` / `MARS_DATA_ROOT` / `MAPPED_DATA_ROOT` / `MMLSV2_DATA_ROOT` 或 `.env` 提供。
+- `DATA_ROOT` 可由 `DATA_ROOT` / `MARS_DATA_ROOT` / `MAPPED_DATA_ROOT` / `MMLSV2_DATA_ROOT` 或 `.env` 提供。训练与评估脚本不再内置远程主机路径。

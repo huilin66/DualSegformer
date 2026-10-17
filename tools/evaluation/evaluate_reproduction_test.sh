@@ -8,6 +8,8 @@ SCRIPT_DIR="$(CDPATH= cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
+. "${REPO_ROOT}/scripts/_env.sh"
+
 PYTHON_BIN="${PYTHON_BIN:-python}"
 # Same resolution order as the trainer (and .env); no baked-in host path.
 DATA_ROOT="${DATA_ROOT:-${MARS_DATA_ROOT:-${MAPPED_DATA_ROOT:-${MMLSV2_DATA_ROOT:-}}}}"

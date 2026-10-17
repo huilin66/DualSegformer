@@ -8,6 +8,8 @@ SCRIPT_DIR="$(CDPATH= cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
+. "${REPO_ROOT}/scripts/_env.sh"
+
 PYTHON_BIN="${PYTHON_BIN:-python}"
 OUTPUT_DIR="${OUTPUT_DIR:-outputs_experiments/smoke/data}"
 SUMMARY_CSV="${SUMMARY_CSV:-${OUTPUT_DIR}/smoke_data_summary.csv}"

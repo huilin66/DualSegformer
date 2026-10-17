@@ -27,12 +27,20 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Iterable
 
 import cv2
 import numpy as np
 import tifffile
+
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from env_utils import get_env_value
 
 
 # Output order is the historical competition order used by dataset.py.
@@ -240,7 +248,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--source-root",
-        default=os.environ.get("MMLSV2_DATA_ROOT", r"Z:\huilin\bdd\cp_data\mmlsv2"),
+        default=get_env_value(
+            "MMLSV2_DATA_ROOT", "MARS_DATA_ROOT", "DATA_ROOT",
+            default=r"Z:\huilin\bdd\cp_data\mmlsv2",
+        ),
         help="MMLSv2 root containing train/val/test.",
     )
     parser.add_argument(

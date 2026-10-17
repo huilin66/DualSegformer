@@ -8,6 +8,8 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd -- "${SCRIPT_DIR}/.." && pwd)
 cd "${REPO_ROOT}"
 
+. "${SCRIPT_DIR}/_env.sh"
+
 PYTHON_BIN=${PYTHON_BIN:-python}
 CONFIG=${CONFIG:-configs/mmlsv2_paper_protocol.json}
 # Same resolution order as the trainer and tools/evaluation (and .env), minus the

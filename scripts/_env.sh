@@ -9,9 +9,50 @@
 #   NUM_WORKERS  PYTHON_BIN  CONFIG  GROUP  EXPERIMENTS  FINALIZE_RESULTS
 #   DRY_RUN  SKIP_MODEL_INIT  STRICT_DETERMINISM  RUN_ROOT  EXPECTED_RUNS
 #
-# When DATA_ROOT is left unset it is taken from the same variables the trainer
-# itself reads (MMLSV2_DATA_ROOT / MARS_DATA_ROOT / DATA_ROOT, including .env via
-# env_utils), so launchers do not need a baked-in path.
+# The repository-root .env is loaded here for every shell entry point. Values
+# already present in the environment take precedence, so command-line exports
+# can override .env without editing the file.
+
+PROJECT_ROOT="${REPO_ROOT:-}"
+if [ -z "${PROJECT_ROOT}" ]; then
+  PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+fi
+
+PROJECT_ENV="${PROJECT_ROOT}/.env"
+if [ -r "${PROJECT_ENV}" ]; then
+  while IFS= read -r _env_line || [ -n "${_env_line}" ]; do
+    case "${_env_line}" in
+      ''|\#*) continue ;;
+      export\ *) _env_line=${_env_line#export } ;;
+    esac
+    case "${_env_line}" in
+      *=*) ;;
+      *) continue ;;
+    esac
+
+    _env_key=${_env_line%%=*}
+    _env_value=${_env_line#*=}
+    case "${_env_key}" in
+      ''|*[!A-Za-z0-9_]*|[0-9]*) continue ;;
+    esac
+
+    eval "_env_is_set=\${${_env_key}+yes}"
+    [ -n "${_env_is_set}" ] && continue
+
+    case "${_env_value}" in
+      \"*\")
+        _env_value=${_env_value#\"}
+        _env_value=${_env_value%\"}
+        ;;
+      \'*\')
+        _env_value=${_env_value#\'}
+        _env_value=${_env_value%\'}
+        ;;
+    esac
+    export "${_env_key}=${_env_value}"
+  done < "${PROJECT_ENV}"
+fi
+unset PROJECT_ROOT PROJECT_ENV _env_line _env_key _env_value _env_is_set
 
 DATA_ROOT="${DATA_ROOT:-${MARS_DATA_ROOT:-${MAPPED_DATA_ROOT:-${MMLSV2_DATA_ROOT:-}}}}"
 export DATA_ROOT
