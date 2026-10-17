@@ -1,15 +1,17 @@
-# PMDFNet：Physically Motivated Dual-Stream Fusion for Multimodal Landslide Segmentation（MMLSv2 期刊实验计划 v2）
+# PMDFNet：Physically Motivated Dual-Stream Fusion for Multimodal Landslide Segmentation（MMLSv2 期刊实验计划 v2，按 protocol v5 对齐）
 
 本文件中的 PMDFNet 是项目论文统一名称；旧版代码中的 `dual_segformer_*` 仅保留为历史兼容键。
 
 > **目标期刊**：MDPI *Remote Sensing*  
 > **研究定位**：保留既有 PMDFNet，不增加新的主网络模块；通过公平基线、模态分组消融、统计重复和可复现的数据转换协议，检验双流设计的实际价值。  
 > **主数据集**：`mmlsv2_mapped_mars_ls`（由 MMLSv2 转换/映射获得；论文中称为 *converted MMLSv2*，**不是新的独立数据集**）。  
-> **主模型**：`PMDFNet-Small`，两条独立 ConvNeXt-Small 编码器 + 四尺度 Add Fusion + SegFormer All-MLP Decoder。**在开始正式测试集比较前冻结此选择**。  
+> **主模型**：`PMDFNet-Small`，两条独立 ConvNeXt-Small 编码器 + 四尺度 Add Fusion + SegFormer All-MLP Decoder；当前 protocol v5 的主损失为 **CE-only**。**在开始正式测试集比较前冻结此选择**。
 > **对照模型**：单流 ConvNeXt-Small + 同类 MLP Decoder；其他经典分割基线。  
 > **明确排除**：TRB-Net（缺少可重复执行的代码/权重/协议，本计划不将其列为必做对比）。  
 > **实验范围**：仅包含 MMLSv2；Landslide4Sense 另立计划。  
-> **状态**：执行蓝本；参数、样本映射与预训练来源须经 E0/实现核验后最终冻结。
+> **状态**：以 `configs/mmlsv2_paper_protocol.json`（`pmdfnet_mmlsv2_remote_sensing_v5_ce_only_groups_split`）和当前 `scripts/`、`tools/evaluation/` 实现为执行蓝本；参数、样本映射与预训练来源须经 E0/实现核验后最终冻结。
+
+> **实现对齐说明（2026-10-17）**：本文档中旧版计划与当前代码不一致的地方，以 protocol v5 和实际运行脚本为准。当前正式矩阵使用 batch size `32`，主模型 M5 由协议运行项 `L1` 实现并使用 CE-only；`L2`、`L3` 仅作为损失消融覆盖项。当前公开 Test 评估脚本使用 MARS Test 统计量，相关行为在第 1.2 节明确记录。
 
 ## 0. 研究问题、边界与待验证主张
 
@@ -22,20 +24,20 @@
 - **RQ1：效果**——在统一 MMLSv2 协议下，PMDFNet-Small 相较代表性分割方法能否获得稳定的性能改善？
 - **RQ2：容量控制**——双流优点是否超出“两个编码器导致参数量增加”的影响？
 - **RQ3：输入分组**——原始物理动机的 `3+4` 通道分组是否优于相同通道宽度的其他分组？
-- **RQ4：设计合理性**——简单 Add Fusion 和 CE + Dice 是否能提供有竞争力的准确率—复杂度权衡？
+- **RQ4：设计合理性**——简单 Add Fusion 与 CE-only 主训练协议是否能提供有竞争力的准确率—复杂度权衡；CE + Dice 作为 L3 对照时是否带来额外收益？
 - **RQ5：可靠性**——性能差异是否跨随机种子稳定，在预设的受控扰动和模态缺失下表现如何？
 
 **结论边界**：即便取得性能优势，也只可声称“物理含义驱动的通道分组（physically motivated modality grouping）”，不应将它描述为通过物理方程约束训练的严格 *physics-informed learning*。如果容量匹配对照或替代分组更好，须如实收缩方法主张。
 
 ### 0.1 主模型为何选择 Small
 
-本轮以**当前已验证的 `PMDFNet-Small`**为主模型，配套使用 ConvNeXt-Small 单流直接对照；**Tiny 仅用于容量/效率补充**，不允许依据 Test 表现事后切换论文主模型。
+本轮以**当前已验证的 `PMDFNet-Small`**为主模型，配套使用 ConvNeXt-Small 单流直接对照；当前 protocol v5 不包含 PMDFNet-Tiny 正式运行项，不允许依据 Test 表现事后切换论文主模型。
 
 应在实验记录中分别交代：
 
 1. **原 Workshop 稿**：Table 2 同时包含 Tiny 和 Small，Tiny 具有完整 Test1/Test2 报告，而 Small 在该表仅报告 Test2；不能笼统宣称“原稿以 Small 为唯一主模型”。
 2. **本轮期刊研究**：研究开始前选择 Small 作为主配置的原因、已验证的训练配置及代码版本；保存主模型冻结记录。
-3. **Tiny 扩展**：按预先规定的辅助实验展示，不作为后验挑选的主结果。
+3. **Tiny 扩展**：如未来加入，必须作为新的版本化辅助实验预先规定，不作为后验挑选的主结果。
 
 ### 0.2 固定网络定义
 
@@ -46,7 +48,7 @@
 | Stream 1 | Thermal Inertia + Slope + DEM | 3 |
 | Stream 2 | Grayscale + R + G + B | 4 |
 
-两条权重独立的 ConvNeXt-Small 在相应尺度上产生特征，逐尺度相加后交给 SegFormer All-MLP Decoder；默认损失为 CE + Dice。主体网络不修改。对照实验允许更改**基线**骨干规模、首层输入通道数、融合消融算子或损失项，但须声明这些是实验对照而非最终方法升级。
+两条权重独立的 ConvNeXt-Small 在相应尺度上产生特征，逐尺度相加后交给 SegFormer All-MLP Decoder；当前正式 protocol 的默认损失为 **CE-only**。`L2` 使用 Dice-only，`L3` 使用实现中的 CE + Dice；其余基线和消融均使用 CE-only。主体网络不修改。对照实验允许更改**基线**骨干规模、首层输入通道数、融合消融算子或损失项，但须声明这些是实验对照而非最终方法升级。
 
 ---
 
@@ -59,8 +61,9 @@
 - [ ] 明确原始 MMLSv2 下载来源、发布日期/commit/数据发布版本；记录本地转换脚本的 Git commit。
 - [ ] 列出转换前后的 **7 个通道顺序、名称、物理单位、数据类型、NoData、取值范围**。
 - [ ] 记录几何对齐、重采样、裁剪、插值、异常值处理、归一化及映射规则。
-- [ ] 计算 Train / Val / Test 各通道的 min/max、均值、标准差、分位数和直方图；**Test 统计量只允许用于最终描述/分布差异分析，不得用于参数拟合或方案选择**。
-- [ ] 所有归一化参数、裁剪阈值或校正系数必须明确来源；若来自 Train，只在 Train 拟合后应用到 Val/Test。
+- [ ] 计算 Train / Val / Test 各通道的 min/max、均值、标准差、分位数和直方图。
+- [ ] 当前 protocol v5 的训练/验证配置使用 `normalization=train`，即 MARS Train 统计量用于 Train/Val；公开 Test 评估脚本 `tools/evaluation/evaluate_test_metrics.py` 使用 `MARS_MEAN_TEST/MARS_STD_TEST`。Test 统计量不得参与训练参数拟合、checkpoint 选择或超参数选择，并须在论文中明确这一实现口径。
+- [ ] 所有归一化参数、裁剪阈值或校正系数必须明确来源；当前实现中的 Train/Test 统计量版本和生成方式必须随协议存档。
 - [ ] 校验每张图像与 GT 的配对、mask 值域（前景/背景/ignore）、空间尺寸、波段次序。
 
 ### E0.2 划分与潜在泄漏审计
@@ -76,7 +79,8 @@
 - `dataset_manifest.csv`：文件名、split、scene/group、来源 ID、哈希、对应标注；
 - `channel_mapping.yaml`：各通道来源索引、单位与映射方法；
 - `dataset_audit.md`：数据分布与泄漏检查记录；
-- 固定 `train/val/test` 文件列表和完整转换脚本。
+- 固定 `train/val/test` 文件列表和完整转换脚本；当前映射程序生成的 `mapping_manifest.json` 与 `mapping_match_report.json` 作为映射核验附件保存，但不能替代上述完整数据审计交付物。
+- 训练使用 `.env` 解析出的 `MMLSV2_DATA_ROOT`/`DATA_ROOT` 映射数据根目录；`MARS_LSC_ROOT` 仅作为映射比较参考，不能作为训练输入。参考数据版本必须与映射时使用的版本一致并记录。
 
 **论文写法**：*Converted MMLSv2*（转换后的 MMLSv2）。只有证据支持时才能说明“与竞赛数据基本一致”；不得据此称其为新数据集。
 
@@ -87,19 +91,26 @@
 ### 1.1 数据与模型选择
 
 1. **Train**：仅用于优化模型参数、拟合归一化统计和训练增强。
-2. **Validation**：用于 checkpoint、阈值和预定义超参数选择；受控扰动的**类型/强度/生成规则也先在这里确定并冻结**。
-3. **Test**：仅在全部协议、模型及阈值冻结后执行最终评价；不得依据 Test 分数重新选择主模型、调整分组、阈值、扰动强度或模型配置。
+2. **Validation**：用于 checkpoint 和预定义超参数选择；当前训练器每个 epoch 验证一次，并按全局 mIoU 保存 `best.pth`。当前测试评估固定使用 `argmax`，没有额外的 Val 阈值搜索；受控扰动的**类型/强度/生成规则也先在这里确定并冻结**。
+3. **Test**：当前使用 converted MMLSv2 中带公开 mask 的 `test` split，不等同于官方隐藏竞赛 Test2；仅在全部协议和模型配置冻结后执行最终评价。不得依据 Test 分数重新选择主模型、调整分组、阈值、扰动强度或模型配置。
 4. 数据或映射后续发生变化，须生成新的版本号并在实验日志中说明；此前 Test 评估不能当作未使用。
 
 ### 1.2 基础训练设置
 
-以现有代码可复现设置为优先，初始参考原稿：`128×128`、`100 epochs`、`batch size=16`、`AdamW`、初始学习率 `1e-4`、weight decay `5e-4`、cosine schedule。增强包括水平/垂直翻转、90° 倍数旋转、裁剪、Mosaic 等，需由同一实现控制。
+当前正式执行以 protocol v5 和现有代码为准：`128×128`、`100 epochs`、`batch size=32`、`AdamW`、初始学习率 `1e-4`、weight decay `5e-4`、cosine schedule。训练使用 `MarsAugmentor`，`aug_prob=0.5`、`mosaic_prob=0.5`，包括水平/垂直翻转、90° 倍数旋转、裁剪和 Mosaic 等操作。Train/Val 使用 `normalization=train`；公开 Test 评估按当前脚本使用 MARS Test 统计量。
+
+> **实现注意**：JSON 配置文件的说明文字仍保留“Train 统计量应用到 validation/test”的历史表述，但当前 `tools/evaluation/evaluate_test_metrics.py` 实际读取 `MARS_MEAN_TEST/MARS_STD_TEST`。本计划记录实际评估代码行为；正式论文提交前必须将该口径作为明确的 protocol 决策，并同步配置说明或代码。
+
+- 训练 DataLoader 当前使用 `drop_last=True`；batch size 为 32 时每个 epoch 仅使用完整 batch，需在运行记录中保留该设置。
+- `deterministic=true`，正式 seeds 固定为 `41, 42, 43`，默认 `num_workers=4`，默认设备为 `cuda:0`，不使用 mixed precision。
+- 当前 protocol 的通用损失为 **CE-only**；仅 `L2` 覆盖为 Dice-only，`L3` 覆盖为 CE + Dice（代码实现为 `0.5*CE + 0.5*Dice`）。
+- 默认 `pretrain=true`；`M11` 的协议项显式使用 `pretrain=false`，并记录其实际 M3LSNet selective-scan 或 fallback 实现路径。
 
 - 主方法 **Small 与单流 Small** 的优化配置和训练预算尽可能一致。
 - 单独记录每个模型的初始化（ImageNet/其他预训练）、首层通道适配方法和可训练参数。
 - 主表仅用**单模型、无 TTA、无 Ensemble、无额外 Test 分布校正**的结果；TTA 单独补充。
-- 先定义阈值策略：例如各模型在 Val 上按同一规则选择阈值，冻结后应用于 Test；同时可补充固定 0.5 的敏感性对照。
-- 正式实验随机种子固定为 `41, 42, 43`，在首轮正式运行后不再依据结果更改。
+- 当前二分类预测统一使用 `torch.argmax`；本轮不执行额外概率阈值搜索。若未来引入概率阈值，必须另行建立版本化协议，并不得覆盖本轮既有 Test 结果。
+- 正式实验随机种子固定为 `41, 42, 43`，在正式运行后不再依据结果更改。
 
 ### 1.3 统一评价口径
 
@@ -112,7 +123,7 @@
 | GFLOPs ↓ | 同一 `128×128` 输入、相同计量工具 |
 | FPS / latency ↓ | 同一 GPU、batch、precision、warm-up、计时策略（FPS ↑，latency ↓） |
 
-**不要混淆**：全数据集混淆矩阵汇总的 mIoU 与逐图像 mIoU 的均值不同，论文和统计检验必须标明所用定义。对每个模型保存 TP/FP/FN/TN、预测概率和最终阈值，便于重算。
+**不要混淆**：全数据集混淆矩阵汇总的 mIoU 与逐图像 mIoU 的均值不同，论文和统计检验必须标明所用定义。当前评估至少保存 TP/FP/FN/TN、`argmax` 预测规则和全局/批次平均两套指标，便于重算；如需保存预测概率，须在运行协议中另行声明。
 
 ---
 
@@ -120,18 +131,21 @@
 
 | ID | 方法 | Backbone / 架构 | 输入 | 阶段 |
 |---|---|---|---|---|
-| M1 | U-Net | 经典 U-Net | 全部 7 通道 | 首轮 |
-| M2 | DeepLabV3+ | ResNet50 | 全部 7 通道 | 首轮 |
-| M3 | SegFormer | MiT-B2 | 全部 7 通道 | 首轮 |
-| M4 | **Single-stream ConvNeXt-Small + MLP Decoder** | ConvNeXt-Small | 全部 7 通道 | **首轮，直接对照** |
-| M5 | **PMDFNet-Small** | ConvNeXt-Small ×2 | 原始 3+4 通道 | **首轮，主方法** |
-| M6 | OCRNet | HRNet | 全部 7 通道 | 第二轮可选 |
-| M7 | UPerNet | ConvNeXt | 全部 7 通道 | 第二轮可选 |
-| M8 | PMDFNet-Tiny | ConvNeXt-Tiny ×2 | 原始 3+4 通道 | 容量/效率补充 |
+| M1 | U-Net | 经典 U-Net + ResNet50 | 全部 7 通道 | core，CE-only |
+| M2 | DeepLabV3+ | DeepLabV3+ + ResNet50 | 全部 7 通道 | core，CE-only |
+| M3 | SegFormer | MiT-B2 | 全部 7 通道 | core，CE-only |
+| M4 | **Single-stream ConvNeXt-Small + MLP Decoder** | ConvNeXt-Small | 全部 7 通道 | **core，直接对照** |
+| M5 | **PMDFNet-Small（协议运行项 L1）** | ConvNeXt-Small ×2 + Add Fusion | 原始 3+4 通道 | **ablations，主方法，CE-only** |
+| M6 | UPerNet | ResNet50 | 全部 7 通道 | extended，CE-only |
+| M7 | FPN | ResNet50 | 全部 7 通道 | extended，CE-only |
+| M8 | MANet | ResNet50 | 全部 7 通道 | extended，CE-only |
+| M9 | U-Net++ | ResNet50 | 全部 7 通道 | extended，CE-only |
+| M10 | OCRNet | HRNet-W18，含 auxiliary head | 全部 7 通道 | extended，CE 主/辅助损失 |
+| M11 | M3LSNet | M3LSNet，自定义 Mamba/VSSD 风格编码器 | 全部 7 通道 | extended，`pretrain=false` |
 
-**命名提醒**：M4 是 ConvNeXt 编码器配 All-MLP Decoder 的单流对照，不能把它写成原始 MiT 架构的官方 SegFormer。
+**命名提醒**：M4 是 ConvNeXt 编码器配 All-MLP Decoder 的单流对照，不能把它写成原始 MiT 架构的官方 SegFormer。当前配置没有 PMDFNet-Tiny；M8 是 MANet + ResNet50，不是 Tiny 版本。
 
-主结果至少报告 mIoU、Foreground IoU、F1、Params、GFLOPs；**M1–M5 全部使用 `41/42/43` 三个 seed，并报告 mean±std**，测试集仅在冻结后评估。论文正文不把原 Workshop 的带 TTA 比赛分数与本地无 TTA 结果混到同一公平比较列。
+主结果至少报告 mIoU、Foreground IoU、F1、Params、GFLOPs；当前正式矩阵的 19 个协议运行项全部使用 `41/42/43` 三个 seed，共 57 个 run，并报告 mean±std。论文展示的 M5 结果来自 L1，不新增单独的 M5 训练；测试集仅在冻结后评估。论文正文不把原 Workshop 的带 TTA 比赛分数与本地无 TTA 结果混到同一公平比较列。
 
 **交付**：`Table 2. Comparison with segmentation baselines on converted MMLSv2`。
 
@@ -143,13 +157,13 @@
 |---|---|---|---|---|
 | A1 | 单流 ConvNeXt-Small + MLP Decoder | RGB + Grayscale（4） | 仅光学信息 | 新训练 |
 | A2 | 单流 ConvNeXt-Small + MLP Decoder | Thermal + Slope + DEM（3） | 仅地形/热物理信息 | 新训练 |
-| A3 | 单流 ConvNeXt-Small + MLP Decoder | 7 通道 | Early Fusion | **M4** |
-| A4 | PMDFNet-Small | 原始 3+4 | 原始双流 | **M5** |
+| A3 | 单流 ConvNeXt-Small + MLP Decoder | 7 通道 | Early Fusion | **M4（显示别名）** |
+| A4 | PMDFNet-Small | 原始 3+4 | 原始双流 | **L1/M5（显示别名）** |
 | A5 | **近似容量对照：单流 ConvNeXt + MLP Decoder** | 7 通道 | 控制容量/参数量混杂 | 新训练 |
 
-A5 的骨干型号按实际 Params 选择最接近 M5 的已有标准 ConvNeXt 规格，并在**不看 Test 结果**的情况下冻结（例如考虑 ConvNeXt-Base，但必须实测总参数量和 GFLOPs）。如无法严格匹配，应报告百分比偏差，并将比较称为“近似容量对照”，不写成“参数完全相同”。
+A5 当前固定为单流 ConvNeXt-Base + MLP Decoder。必须实测总参数量和 GFLOPs；如无法与 M5 严格匹配，应报告百分比偏差，并将比较称为“近似容量对照”，不写成“参数完全相同”。
 
-**主要比较**：`A4 vs A3`（双流增益）、`A4 vs A5`（排除纯容量解释）、`A1/A2 vs A3/A4`（模态互补性）。
+**主要比较**：`A4 vs A3`（双流增益）、`A4 vs A5`（排除纯容量解释）、`A1/A2 vs A3/A4`（模态互补性）。A3、A4 只用于论文展示命名，不产生新的训练目录。
 
 **交付**：`Table 3. Effect of dual-stream encoding and input modalities`。
 
@@ -161,32 +175,33 @@ A5 的骨干型号按实际 Params 选择最接近 M5 的已有标准 ConvNeXt �
 
 | ID | Stream 1：3 通道 | Stream 2：4 通道 | 理由 | 阶段 |
 |---|---|---|---|---|
-| B1 | Thermal + Slope + DEM | Grayscale + RGB | 原始物理分组；**复用 M5** | 必须 |
+| B1 | Thermal + Slope + DEM | Grayscale + RGB | 原始物理分组；**复用 L1/M5** | 必须 |
 | B2 | RGB | Thermal + Slope + DEM + Grayscale | 将 RGB 单独成组；检验灰度归属 | 必须 |
 | B3 | Thermal + DEM + Grayscale | Slope + RGB | 非原始混合分组 | 必须 |
-| B4 | Slope + DEM + Grayscale | Thermal + RGB | 另一种严格 3+4 混合分组 | 可选 |
+| B4 | Slope + DEM + Grayscale | Thermal + RGB | 另一种严格 3+4 混合分组 | 当前 protocol 未纳入 |
 
-说明：旧版 B4（`Slope + Grayscale + RGB` vs `Thermal + DEM`）实际是 **5+2**，不能用于严格 3+4 对比；已删除。这里 B4 采用审查意见提供的 `Thermal + RGB` 与 `Slope + DEM + Grayscale` 组合，并将其排列为固定 **3+4** 的分支顺序。
+说明：旧版 B4（`Slope + Grayscale + RGB` vs `Thermal + DEM`）实际是 **5+2**，不能用于严格 3+4 对比。上表给出的新 B4（`Thermal + RGB` 与 `Slope + DEM + Grayscale`）仅作为未来可选的严格 3+4 方案，不属于当前 protocol v5，当前不训练。
 
-- 比较 B1/B2/B3，观察 B1 是否在多个 seed 上稳定占优；B4 用于补充验证，不允许依据 Test 结果决定是否增添更多有利分组。
+- 当前 protocol v5 正式训练 B2/B3，B1 直接复用 L1/M5；B4 不在 19 个正式运行项中，如需加入必须建立新的协议版本，不允许依据 Test 结果临时增添有利分组。
+- 比较 B1/B2/B3，观察 B1 是否在多个 seed 上稳定占优。
 - 若 B1 不占优，论文主张应从“物理分组最优”收缩为“双流分组对输入配置敏感，原始分组具有实用性”。
 
 **交付**：`Table 4. Ablation of channel grouping strategies`。
 
 ---
 
-## E4. 融合与损失消融【第二轮，建议】
+## E4. 融合与损失消融【当前 protocol v5 已纳入正式矩阵】
 
 | ID | 只改变的变量 | 配置 | 复用 |
 |---|---|---|---|
-| C1 | Fusion | 四尺度逐元素 Add | **M5** |
+| C1 | Fusion | 四尺度逐元素 Add | **L1/M5** |
 | C2 | Fusion | Concat + 1×1 Conv，统一回原通道数 | 新训练 |
-| L1 | Loss | CE only | 新训练 |
+| L1 | Loss | CE only | **主模型 M5，训练一次** |
 | L2 | Loss | Dice only | 新训练 |
-| L3 | Loss | CE + Dice | **M5** |
+| L3 | Loss | CE + Dice | 新训练 |
 
 - C1/C2 的参数量可能不同，必须报告额外 Params 和 GFLOPs。
-- Loss 对照固定 Backbone、输入、融合与训练协议。
+- Loss 对照固定 Backbone、输入、融合与训练协议。L1 是主模型 M5，同时作为 CE-only loss row；L3 是独立的 CE + Dice loss row，不能再将 L3 作为 M5 的复用项。
 - 这些实验验证**原设计选择**，不意味着将 Concat 写成论文方法升级。
 
 **交付**：`Table 5. Fusion and loss ablation`。
@@ -194,6 +209,8 @@ A5 的骨干型号按实际 Params 选择最接近 M5 的已有标准 ConvNeXt �
 ---
 
 ## E5. 受控扰动及模态缺失【第二轮，建议】
+
+当前 `scripts/run_core.sh`、`run_ablations.sh` 和 `run_extended.sh` 的 57-run 正式矩阵不包含 E5；现有代码也没有将这些扰动自动接入训练/评估流水线。本节是后续独立扩展，若实施必须新增版本化的 `robustness_protocol.yaml`，不能将未执行的 E5 写成已完成结果。
 
 **先 Val 确定协议，再冻结，最后 Test 一次性评价。** 不从 Test 结果决定扰动类别、等级、随机种子、选择哪张图或采用哪个模型。
 
@@ -217,7 +234,7 @@ A5 的骨干型号按实际 Params 选择最接近 M5 的已有标准 ConvNeXt �
 
 ### E6.1 统计可靠性
 
-- **M1–M5 全部必须使用 `41/42/43` 三个随机种子**；A1/A2/A5 和 B1–B3 优先采用同样的三 seed 标准。资源不足时可以推迟非主实验，但不能把单次最优值冒充均值。
+- 当前正式矩阵的 19 个协议运行项（M1–M4、M6–M11、A1、A2、A5、B2、B3、C2、L1、L2、L3）全部使用 `41/42/43` 三个随机种子，共 57 个 run；M5、A4、B1、C1 是对 L1 的论文显示别名，不重复训练。不能把单次最优值冒充均值。
 - 每次运行固定并记录训练种子、数据读取顺序、预训练权重、checkpoint 选择策略。
 - 主要结果报告 mean±std；差值的区间可用按测试**图像**配对重采样的 bootstrap。应区分两类统计对象：跨 seed 的训练随机性、测试图像采样的置信区间，二者不可混为一谈。
 - 即便某个 seed 表现不佳，也不得从报告中删除；不以 Test 选择“最优 seed”。
@@ -231,7 +248,7 @@ A5 的骨干型号按实际 Params 选择最接近 M5 的已有标准 ConvNeXt �
 | FPS / latency | 同一 GPU、batch、精度、warm-up 和测速次数 |
 | Peak VRAM（可选） | 同一 batch size，报告测量范围 |
 
-主表默认不含 TTA；如另作 TTA，单独报告预测质量和额外耗时。不同分辨率/硬件的速度不能直接比较。
+当前仓库的 `run_vram_smoke.sh` 仅用于有界显存/建模探针，不等同于 Params、GFLOPs、FPS/latency 正式测量；正式复杂度表需要单独执行并保存测量脚本、硬件、精度、warm-up 和计时配置。主表默认不含 TTA；如另作 TTA，单独报告预测质量和额外耗时。不同分辨率/硬件的速度不能直接比较。
 
 **交付**：`Table 6. Model complexity and inference speed`、`Supplementary Table S1. Multi-seed results`。
 
@@ -249,27 +266,33 @@ A5 的骨干型号按实际 Params 选择最接近 M5 的已有标准 ConvNeXt �
 
 ---
 
-## 2. 首轮最小实验矩阵（先验证关键结论）
+## 2. 当前正式实验矩阵（protocol v5）
 
-> 原则：首轮**不做** OCRNet、UPerNet、大规模扰动、TTA/Ensemble 或额外结构升级；先确认 M4 vs M5 与容量/分组控制下的结论是否成立。
+当前配置将正式训练矩阵拆成互斥的三个 group，共 19 个协议运行项、3 个 seed、57 个 run。`M5` 是论文显示 ID，实际协议运行项为 `L1`；`A3/A4/B1/C1` 是对 `M4/L1` 的显示别名，不重复训练。
 
-| 类别 | 必做配置 | 对应编号 |
-|---|---|---|
-| 主方法及直接对照 | 单流 Small；双流 Small | M4、M5 |
-| 常见代表性基线 | U-Net、DeepLabV3+、SegFormer MiT-B2 | M1、M2、M3 |
-| 模态贡献 | 仅光学单流；仅物理单流 | A1、A2 |
-| 容量对照 | 近似容量对照的单流 | A5 |
-| 物理分组 | 原始；RGB 独立；混合替代 | B1（复用 M5）、B2、B3 |
-| Fusion | Add；Concat+1×1 Conv | C1（复用 M5）、C2 |
-| 统计 | M1–M5 均使用 `41/42/43`；A5 和关键分组优先扩展 | E6 |
-| 效率/可视化 | Params、GFLOPs、FPS；固定规则的案例图 | E6、E7 |
+| 分组 | 正式训练项 | run 数量 | 启动入口 |
+|---|---|---:|---|
+| core | M1、M2、M3、M4 | 4 × 3 = 12 | `scripts/run_core.sh` |
+| ablations | A1、A2、A5、B2、B3、C2、L1、L2、L3 | 9 × 3 = 27 | `scripts/run_ablations.sh` |
+| extended | M6、M7、M8、M9、M10、M11 | 6 × 3 = 18 | `scripts/run_extended.sh` |
+| 合计 | 19 个协议运行项 | **57** | 三组全部执行 |
 
-**训练去重**：`M4=A3`；`M5=A4=B1=C1=L3`。同配置、同 seed、同数据版本可以直接共享模型与预测。A1/A2、A5、B2/B3、C2 需要独立训练。
+其中：
+
+- 主方法及直接对照：M4（单流 Small）与 L1（论文 M5，双流 Small，CE-only）；
+- 代表性基线：M1、M2、M3；
+- 模态贡献：A1、A2；
+- 容量对照：A5（单流 ConvNeXt-Base）；
+- 通道分组：L1/M5（B1 别名）、B2、B3；
+- 融合与损失：L1/M5（C1 别名）、C2、L2、L3；
+- 扩展基线：M6–M11，均属于当前正式矩阵，不再写成未执行的“可选”结果。
+
+**训练去重**：`M4=A3`；`L1=M5=A4=B1=C1`。同配置、同 seed、同数据版本直接共享模型与预测。A1/A2、A5、B2/B3、C2、L2、L3 需要独立训练。
 
 第一轮结束设立**分析关口**：
 
-1. 若 M5 在 3 seeds 上对 M4 的优势不稳定，先排查数据、统计口径和训练差异，不要根据 Test 回头调模型。
-2. 若 M5 不优于 A5，不能把性能提升单方面归因为模态解耦；如实讨论参数与容量影响。
+1. 若 L1/M5 在 3 seeds 上对 M4 的优势不稳定，先排查数据、统计口径和训练差异，不要根据 Test 回头调模型。
+2. 若 L1/M5 不优于 A5，不能把性能提升单方面归因为模态解耦；如实讨论参数与容量影响。
 3. 若 B1 不优于 B2/B3，修改**论文解释与结论范围**，而不是通过 Test 导向的分组搜索寻找支持原主张的结果。
 4. 若核心证据不足，可以决定暂缓期刊投稿或另启**新的实验版本**；不得把同一 Test 的多轮反馈伪装成独立最终测试。
 
@@ -280,27 +303,27 @@ A5 的骨干型号按实际 Params 选择最接近 M5 的已有标准 ConvNeXt �
 ### Phase 0：E0 数据审计与协议冻结
 
 1. 完成映射索引、单位、直方图、配对、场景独立性/近重复检查。
-2. 生成 manifest、hash、转换脚本和 `experiment_protocol.yaml`。
-3. 冻结主模型 Small、随机种子、训练/验证流程、指标、阈值策略和 Test 的使用规则。
+2. 保存 `mapping_manifest.json`、`mapping_match_report.json`，并补齐 manifest、hash、转换脚本和数据审计记录。
+3. 以 `configs/mmlsv2_paper_protocol.json` 为训练协议源文件，冻结主模型 Small、batch size 32、CE-only 主损失、随机种子、训练/验证流程、指标和 Test 的使用规则；如另建 `experiment_protocol.yaml`，必须与 JSON 一致。
 
 ### Phase 1：基础比较和 3-seed 稳定性
 
-4. 训练 M1–M5（包括单流/双流 Small 及三种代表性基线），全部使用 `41/42/43` 三个 seeds。
-5. 训练 A5（近似容量对照的单流模型），使用 `41/42/43` 三个 seeds。
-6. 完成 M1/M2/M3 基线、A1/A2 模态基线；先在 Validation 确认实现正确。
+4. 先运行 `scripts/run_data_smoke.sh`；确认 `.env` 解析出的 `DATA_ROOT` 指向 mapped MMLSv2，而不是原始 MMLSv2。
+5. 运行 `scripts/run_core.sh`、`scripts/run_ablations.sh` 和 `scripts/run_extended.sh`，完成 19 个协议运行项 × `41/42/43`，共 57 个 run。
+6. 资源有限时可按上述三组分阶段执行，但不得改变协议、seed、数据版本或输出命名；先在 Validation 确认实现正确。
 
 ### Phase 2：验证核心机制
 
-7. 训练 B2/B3（必要时预先设定 B4），按规定重复。
-8. 训练 C2，与 C1/原模型做单变量对照。
-9. 核实双流、模态划分和参数效率方面的结论是否成立。
+7. 核实 B2/B3、C2、L2/L3 与 L1/M5 的单变量比较；B4 不属于当前 protocol v5。
+8. 单独完成 Params、GFLOPs、FPS/latency 测量；`run_vram_smoke.sh` 只作显存探针。
+9. 核实双流、模态划分、损失和参数效率方面的结论是否成立。
 
 ### Phase 3：冻结后最终测试与写作
 
-10. 完成全部模型的最终 Test 评估；输出标准化预测、混淆矩阵和指标。
-11. 执行已在 Val 冻结的扰动协议（若做 E5）。
-12. 使用预注册固定 ID 选择 Test 可视化；完成效率测试和多 seed 汇总。
-13. 根据实际证据撰写 Discussion，补充必要的 E4 Loss 消融或附录数据。
+10. 确认 57 个 formal run 均存在 `best.pth`、`config.json` 和完成日志后，运行 `scripts/run_test_eval.sh`；该脚本要求默认找到 57 个正式 run。
+11. 输出标准化预测、全像素混淆矩阵和指标；记录当前 Test 使用 MARS Test 统计量的实现口径。
+12. 执行已在 Val 冻结的扰动协议（若另行实施 E5），并使用预注册固定 ID 选择 Test 可视化；完成效率测试和多 seed 汇总。
+13. 根据实际证据撰写 Discussion；不得把 L3 的 CE + Dice 结果写成主模型 M5/L1 的 CE-only 结果。
 
 > **注意**：理想流程是先在 Validation 完成各配置、checkpoint、阈值和实验矩阵的冻结，然后一次性评价 Test。不能完成一次 Test 后再决定是否增加某个更可能获胜的分组或改主模型。
 
@@ -311,10 +334,10 @@ A5 的骨干型号按实际 Params 选择最接近 M5 的已有标准 ConvNeXt �
 | 编号 | 图表 | 优先级 |
 |---|---|---|
 | Table 1 | Converted MMLSv2：数据划分、各通道统计和映射协议摘要 | 必须 |
-| Table 2 | M1–M5 主基线（含均值±标准差） | 必须 |
+| Table 2 | M1–M5 主基线（M5 由 L1 提供，含均值±标准差） | 必须 |
 | Table 3 | A1–A5 单流/双流、模态贡献及容量控制 | 必须 |
-| Table 4 | B1–B3/B4：严格 3+4 分组比较 | 必须 |
-| Table 5 | Add vs Concat；CE/Dice Loss | 建议 |
+| Table 4 | B1–B3：严格 3+4 分组比较（B1 复用 L1） | 必须 |
+| Table 5 | Add vs Concat；CE/Dice Loss（L1/L2/L3） | 必须 |
 | Table 6 | Params / GFLOPs / FPS | 必须 |
 | Table 7 | 预设受控扰动及模态缺失 | 建议 |
 | Figure 1 | 原始 PMDFNet-Small 结构图（更新输入和维度标注） | 必须 |
@@ -328,35 +351,42 @@ A5 的骨干型号按实际 Params 选择最接近 M5 的已有标准 ConvNeXt �
 ## 5. 复现目录与记录建议
 
 ```text
-experiments/
-  protocol/experiment_protocol.yaml
-  protocol/robustness_protocol.yaml
-  dataset/channel_mapping.yaml
-  dataset/dataset_manifest.csv
-  dataset/dataset_audit.md
-  configs/{model_name}.yaml
-  runs/{model_name}/seed_{41,42,43}/
-    config.yaml
-    checkpoints/
-    validation_metrics.json
-    test_metrics.json
-    confusion_matrix.json
+outputs_experiments/pmdfnet_mmlsv2/
+  {experiment_name}_s{41,42,43}_{timestamp}/
+    config.json
+    command.txt
+    git.json
+    reproducibility.json
     runtime.json
-  summary/main_results.csv
-  summary/ablation_results.csv
-  summary/efficiency.csv
+    metrics.csv
+    logs/train.log
+    checkpoints/best.pth
+    checkpoints/last.pth
+    results.json
+    test_metrics.json
+
+protocol_artifacts/
+  experiment_protocol.yaml       # 若另行生成，必须与 JSON 一致
+  robustness_protocol.yaml       # 仅实施 E5 时提供
+  channel_mapping.yaml
+  dataset_manifest.csv
+  dataset_audit.md
+  mapping_manifest.json
+  mapping_match_report.json
 ```
 
-如用于公开复现，至少提供数据处理脚本、训练/评估脚本、主模型配置和运行命令。对于不能公开再分发的数据，提供合法下载途径和确定性转换步骤。
+当前训练协议源文件是 `configs/mmlsv2_paper_protocol.json`；运行目录由训练器自动记录配置、命令、Git、可复现性、运行时、checkpoint 和指标。正式 Test 评估写入各 run 目录的 `test_metrics.json` 和 `results.json`。如用于公开复现，至少提供数据处理脚本、训练/评估脚本、主模型配置和运行命令。对于不能公开再分发的数据，提供合法下载途径和确定性转换步骤。
 
 ## 6. 投稿前检查清单
 
-- [ ] 已明确主模型 Small 的版本及其与原 Workshop Tiny/Small 结果的关系。
+- [ ] 已明确主模型 Small 的版本及其与原 Workshop Tiny/Small 结果的关系；当前 protocol v5 不包含 PMDFNet-Tiny 正式运行项。
 - [ ] 已完成 E0：通道、单位、归一化、映射、哈希、场景/相邻切片泄漏检查。
 - [ ] 标注来源、数据划分、Test 使用边界已完整披露。
 - [ ] 所有主基线在相同评估协议下比较；参数近似匹配对照已报告差异。
-- [ ] B1–B3（以及可选 B4）都满足固定 3+4 的分支输入宽度。
-- [ ] M1–M5 均使用 `41/42/43` 三个 seeds，报告 mean±std，不依据 Test 选 seed。
+- [ ] B1–B3 都满足固定 3+4 的分支输入宽度；B4 不属于当前 protocol v5。
+- [ ] 19 个正式协议运行项均使用 `41/42/43` 三个 seeds，报告 mean±std；M5/A4/B1/C1 由 L1 复用，不依据 Test 选 seed。
+- [ ] 已记录 batch size `32`、`drop_last=True`、CE-only 主损失，以及 L2/L3 的损失覆盖。
+- [ ] 已记录 Train/Val 使用 Train 统计量、公开 Test 评估使用 MARS Test 统计量的当前实现口径。
 - [ ] 扰动类型和强度在 Validation 确定，最终 Test 不参与修改方案。
 - [ ] Test 定性样本选择不依据模型表现。
 - [ ] 不将 TTA、Ensemble、测试集校正和模型主体效果混为一谈。
