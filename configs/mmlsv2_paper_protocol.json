@@ -255,7 +255,8 @@
       "arch": "upernet",
       "encoder": "tu-resnet50",
       "in_channels": 7,
-      "notes": "Extra E1 baseline: UPerNet + ResNet50. Encoder string is 'tu-resnet50' (timm resnet50 with ImageNet weights); the display name 'ResNet50' matches the encoder used by M1/M2."
+      "deterministic": false,
+      "notes": "Extra E1 baseline: UPerNet + ResNet50. Encoder string is 'tu-resnet50' (timm resnet50 with ImageNet weights); the display name 'ResNet50' matches the encoder used by M1/M2. UPerNet uses CUDA adaptive average pooling whose backward pass has no deterministic implementation in the current PyTorch/CUDA stack, so this baseline explicitly disables deterministic algorithms. Keep seeds fixed and report this exception."
     },
     {
       "id": "M7",

@@ -102,7 +102,7 @@
 > **实现注意**：JSON 配置文件的说明文字仍保留“Train 统计量应用到 validation/test”的历史表述，但当前 `tools/evaluation/evaluate_test_metrics.py` 实际读取 `MARS_MEAN_TEST/MARS_STD_TEST`。本计划记录实际评估代码行为；正式论文提交前必须将该口径作为明确的 protocol 决策，并同步配置说明或代码。
 
 - 训练 DataLoader 当前使用 `drop_last=True`；batch size 为 32 时每个 epoch 仅使用完整 batch，需在运行记录中保留该设置。
-- `deterministic=true`，正式 seeds 固定为 `41, 42, 43`，默认 `num_workers=4`，默认设备为 `cuda:0`，不使用 mixed precision。
+- 除 M6 外，正式运行项使用 `deterministic=true`；M6 的 UPerNet 因 CUDA `adaptive_avg_pool2d` 反向传播缺少确定性实现，协议显式设置 `deterministic=false`。所有正式 seeds 仍固定为 `41, 42, 43`，默认 `num_workers=4`，默认设备为 `cuda:0`，不使用 mixed precision；M6 的非确定性例外必须记录并披露。
 - 当前 protocol 的通用损失为 **CE-only**；仅 `L2` 覆盖为 Dice-only，`L3` 覆盖为 CE + Dice（代码实现为 `0.5*CE + 0.5*Dice`）。
 - 默认 `pretrain=true`；`M11` 的协议项显式使用 `pretrain=false`，并记录其实际 M3LSNet selective-scan 或 fallback 实现路径。
 
@@ -136,7 +136,7 @@
 | M3 | SegFormer | MiT-B2 | 全部 7 通道 | core，CE-only |
 | M4 | **Single-stream ConvNeXt-Small + MLP Decoder** | ConvNeXt-Small | 全部 7 通道 | **core，直接对照** |
 | M5 | **PMDFNet-Small（协议运行项 L1）** | ConvNeXt-Small ×2 + Add Fusion | 原始 3+4 通道 | **ablations，主方法，CE-only** |
-| M6 | UPerNet | ResNet50 | 全部 7 通道 | extended，CE-only |
+| M6 | UPerNet | ResNet50 | 全部 7 通道 | extended，CE-only，非确定性例外 |
 | M7 | FPN | ResNet50 | 全部 7 通道 | extended，CE-only |
 | M8 | MANet | ResNet50 | 全部 7 通道 | extended，CE-only |
 | M9 | U-Net++ | ResNet50 | 全部 7 通道 | extended，CE-only |
@@ -235,7 +235,7 @@ A5 当前固定为单流 ConvNeXt-Base + MLP Decoder。必须实测总参数量�
 ### E6.1 统计可靠性
 
 - 当前正式矩阵的 19 个协议运行项（M1–M4、M6–M11、A1、A2、A5、B2、B3、C2、L1、L2、L3）全部使用 `41/42/43` 三个随机种子，共 57 个 run；M5、A4、B1、C1 是对 L1 的论文显示别名，不重复训练。不能把单次最优值冒充均值。
-- 每次运行固定并记录训练种子、数据读取顺序、预训练权重、checkpoint 选择策略。
+- 每次运行固定并记录训练种子、数据读取顺序、预训练权重、checkpoint 选择策略和确定性开关；M6 明确标记为 `deterministic=false`。
 - 主要结果报告 mean±std；差值的区间可用按测试**图像**配对重采样的 bootstrap。应区分两类统计对象：跨 seed 的训练随机性、测试图像采样的置信区间，二者不可混为一谈。
 - 即便某个 seed 表现不佳，也不得从报告中删除；不以 Test 选择“最优 seed”。
 
@@ -386,6 +386,7 @@ protocol_artifacts/
 - [ ] B1–B3 都满足固定 3+4 的分支输入宽度；B4 不属于当前 protocol v5。
 - [ ] 19 个正式协议运行项均使用 `41/42/43` 三个 seeds，报告 mean±std；M5/A4/B1/C1 由 L1 复用，不依据 Test 选 seed。
 - [ ] 已记录 batch size `32`、`drop_last=True`、CE-only 主损失，以及 L2/L3 的损失覆盖。
+- [ ] 已记录 M6 因 UPerNet CUDA 反向算子限制而使用 `deterministic=false`，不得将 M6 描述为逐位可复现。
 - [ ] 已记录 Train/Val 使用 Train 统计量、公开 Test 评估使用 MARS Test 统计量的当前实现口径。
 - [ ] 扰动类型和强度在 Validation 确定，最终 Test 不参与修改方案。
 - [ ] Test 定性样本选择不依据模型表现。
